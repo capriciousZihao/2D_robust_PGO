@@ -1,0 +1,10 @@
+/snap/clion/39/bin/cmake/linux/bin/cmake -DCMAKE_BUILD_TYPE=Debug -G "CodeBlocks - Unix Makefiles" /home/zihao/cprogram/code/robustSLAM/robuts_slam_trans_dis_2
+-- Searching for g2o ...
+-- Found g2o headers in: /usr/local/include/g2o
+-- Found libg2o: /usr/local/lib/libg2o_core.so;/usr/local/lib/libg2o_cli.so;/usr/local/lib/libg2o_types_slam2d.so;/usr/local/lib/libg2o_types_slam3d.so;/usr/local/lib/libg2o_csparse_extension.so;/usr/local/lib/libg2o_stuff.so
+-- Searching for suitesparse ...
+-- Found suitesparse headers in: /usr/include/suitesparse
+-- Found suitesparse: /usr/lib/x86_64-linux-gnu/libcxsparse.so
+-- Configuring done
+-- Generating done
+-- Build files have been written to: /home/zihao/cprogram/code/robustSLAM/robuts_slam_trans_dis_2/cmake-build-debug

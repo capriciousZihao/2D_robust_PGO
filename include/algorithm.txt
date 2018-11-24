@@ -1,0 +1,72 @@
+for each loop closure LCi in  LC_Set  
+    conflictSET {}
+    uncertainSET {}
+    consistentSET {}
+    cons_dis_trans_SET {}
+    if cluster_set.size == 0 then
+        new cluster
+        clusterLCi  
+         cluster_set  cluster
+        continue;
+    end if
+    for each clusterj  cluster_set do
+        if clusterj.size() > 1 then
+            futileBit   = 0
+            futileBit1 = 0
+            futileBit2 = 0
+            LC_1 the last loop closure in  cluster
+            LC_2 the second last loop closure in cluster
+            distance, covariance, distance_transform1 calculate_trans_dis(LCi, LC_1)
+            if  covariance >  distance/2 then
+                futileBit1 = 1
+            end if
+            distance, covariance, distance_transform2  calculate_trans_dis(LCi, LC_2) 
+            if  covariance >  distance/2 then
+                futileBit2 = 1
+            end if
+            if  futileBit1+ futileBit2 == 0 then
+                futileBit = 1
+              = min(distance_transfrom1, distance_transfrom2)
+            else if futileBit1+ futileBit2 == 1 then
+                futileBit = 1
+                if  futileBit1== 1 then
+                    distance_transfrom2
+        else
+            LC_1 ←the only loop closure in  cluster
+            distance, covariance, = calculate_trans_dis(LCi, LC_1)
+            if  covariance >  distance/2 then
+                futileBit = 1
+            end if
+        end if
+        if >then
+             conflictSET 
+        else if   >then
+            uncertainSET 
+        else
+            consistentSET 
+            cons_dis_trans_SET
+        end if
+    end for
+    if  consistentSET .size() ==  0 then
+        new cluster
+        clusterLCi  
+         cluster_ SET  cluster
+	conflictMAP[cluster_ SET.size()-1]   uncertainSET
+	uncertainMAP[cluster_ SET.size()-1]    uncertainSET
+    else if consistentSET .size() ==  1 then
+        cluster_ SET[consistentSET[0]]LCi  
+	conflictMAP [consistentSET[0]]   conflictSET
+	uncertainMAP[consistentSET[0]]   uncertainSET
+    else
+        find the index number k to the smallest value in  cons_dis_trans_SET
+        cluster_ SET[consistentSET[k]]LCi  
+	conflictMAP [consistentSET[k]]  uncertainSET
+	uncertainMAP[consistentSET[k]]   uncertainSET 
+        for each elementx  in consistentSET  do
+            if  x == k then
+                continue
+            else
+                uncertainMAP[consistentSET[k]]   elementx 
+            end if
+        end for
+end for

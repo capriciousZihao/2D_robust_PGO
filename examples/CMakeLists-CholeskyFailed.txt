@@ -1,0 +1,25 @@
+
+
+include_directories(${CMAKE_SOURCE_DIR} ${EIGEN3_INCLUDE_DIR} ${SUITESPARSE_INCLUDE_DIR} ${G2O_INCLUDE_DIR})
+include_directories(${G2O_INCLUDE_DIR})
+
+include_directories(${CHOLMOD_INCLUDE_DIR})
+
+message("CHOLMOD_INCLUDE_DIR:" ${CHOLMOD_INCLUDE_DIR})
+message("CSPARSE_INCLUDE_DIR:" ${CSPARSE_INCLUDE_DIR})
+message("EIGEN3_INCLUDE_DIR:" ${EIGEN3_INCLUDE_DIR})
+
+include_directories(${CSPARSE_INCLUDE_DIR})
+include_directories(${EIGEN3_INCLUDE_DIR})
+include_directories(${CMAKE_SOURCE_DIR} ${SUITESPARSE_INCLUDE_DIR})
+
+
+
+
+#set(PROGRAMS 2D_optimizer_g2o 3D_from_disk_g2o)
+set(PROGRAMS 2D_optimizer_g2o )
+
+foreach(program ${PROGRAMS})
+  add_executable(${PROJECT_NAME}_${program} ${program}.cpp)
+  target_link_libraries(${PROJECT_NAME}_${program} ${SUITESPARSE_LIBRARIES} ${G2O_LIBRARIES} ${G2O_LIBS})
+endforeach(program)
