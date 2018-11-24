@@ -48,10 +48,10 @@ RM = /usr/bin/cmake -E remove -f
 EQUALS = =
 
 # The top-level source directory on which CMake was run.
-CMAKE_SOURCE_DIR = /home/zihao/cprogram/code/robustSLAM/robuts_slam_trans_dis_2
+CMAKE_SOURCE_DIR = /home/zihao/cprogram/code/robustSLAM/robuts_slam_trans_dis_2/2D_robust_PGO
 
 # The top-level build directory on which CMake was run.
-CMAKE_BINARY_DIR = /home/zihao/cprogram/code/robustSLAM/robuts_slam_trans_dis_2/build
+CMAKE_BINARY_DIR = /home/zihao/cprogram/code/robustSLAM/robuts_slam_trans_dis_2/2D_robust_PGO/build
 
 #=============================================================================
 # Targets provided globally by CMake.
@@ -80,14 +80,14 @@ rebuild_cache/fast: rebuild_cache
 
 # The main all target
 all: cmake_check_build_system
-	cd /home/zihao/cprogram/code/robustSLAM/robuts_slam_trans_dis_2/build && $(CMAKE_COMMAND) -E cmake_progress_start /home/zihao/cprogram/code/robustSLAM/robuts_slam_trans_dis_2/build/CMakeFiles /home/zihao/cprogram/code/robustSLAM/robuts_slam_trans_dis_2/build/examples/CMakeFiles/progress.marks
-	cd /home/zihao/cprogram/code/robustSLAM/robuts_slam_trans_dis_2/build && $(MAKE) -f CMakeFiles/Makefile2 examples/all
-	$(CMAKE_COMMAND) -E cmake_progress_start /home/zihao/cprogram/code/robustSLAM/robuts_slam_trans_dis_2/build/CMakeFiles 0
+	cd /home/zihao/cprogram/code/robustSLAM/robuts_slam_trans_dis_2/2D_robust_PGO/build && $(CMAKE_COMMAND) -E cmake_progress_start /home/zihao/cprogram/code/robustSLAM/robuts_slam_trans_dis_2/2D_robust_PGO/build/CMakeFiles /home/zihao/cprogram/code/robustSLAM/robuts_slam_trans_dis_2/2D_robust_PGO/build/examples/CMakeFiles/progress.marks
+	cd /home/zihao/cprogram/code/robustSLAM/robuts_slam_trans_dis_2/2D_robust_PGO/build && $(MAKE) -f CMakeFiles/Makefile2 examples/all
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/zihao/cprogram/code/robustSLAM/robuts_slam_trans_dis_2/2D_robust_PGO/build/CMakeFiles 0
 .PHONY : all
 
 # The main clean target
 clean:
-	cd /home/zihao/cprogram/code/robustSLAM/robuts_slam_trans_dis_2/build && $(MAKE) -f CMakeFiles/Makefile2 examples/clean
+	cd /home/zihao/cprogram/code/robustSLAM/robuts_slam_trans_dis_2/2D_robust_PGO/build && $(MAKE) -f CMakeFiles/Makefile2 examples/clean
 .PHONY : clean
 
 # The main clean target
@@ -97,22 +97,22 @@ clean/fast: clean
 
 # Prepare targets for installation.
 preinstall: all
-	cd /home/zihao/cprogram/code/robustSLAM/robuts_slam_trans_dis_2/build && $(MAKE) -f CMakeFiles/Makefile2 examples/preinstall
+	cd /home/zihao/cprogram/code/robustSLAM/robuts_slam_trans_dis_2/2D_robust_PGO/build && $(MAKE) -f CMakeFiles/Makefile2 examples/preinstall
 .PHONY : preinstall
 
 # Prepare targets for installation.
 preinstall/fast:
-	cd /home/zihao/cprogram/code/robustSLAM/robuts_slam_trans_dis_2/build && $(MAKE) -f CMakeFiles/Makefile2 examples/preinstall
+	cd /home/zihao/cprogram/code/robustSLAM/robuts_slam_trans_dis_2/2D_robust_PGO/build && $(MAKE) -f CMakeFiles/Makefile2 examples/preinstall
 .PHONY : preinstall/fast
 
 # clear depends
 depend:
-	cd /home/zihao/cprogram/code/robustSLAM/robuts_slam_trans_dis_2/build && $(CMAKE_COMMAND) -H$(CMAKE_SOURCE_DIR) -B$(CMAKE_BINARY_DIR) --check-build-system CMakeFiles/Makefile.cmake 1
+	cd /home/zihao/cprogram/code/robustSLAM/robuts_slam_trans_dis_2/2D_robust_PGO/build && $(CMAKE_COMMAND) -H$(CMAKE_SOURCE_DIR) -B$(CMAKE_BINARY_DIR) --check-build-system CMakeFiles/Makefile.cmake 1
 .PHONY : depend
 
 # Convenience name for target.
 examples/CMakeFiles/RRR_2D_optimizer_g2o.dir/rule:
-	cd /home/zihao/cprogram/code/robustSLAM/robuts_slam_trans_dis_2/build && $(MAKE) -f CMakeFiles/Makefile2 examples/CMakeFiles/RRR_2D_optimizer_g2o.dir/rule
+	cd /home/zihao/cprogram/code/robustSLAM/robuts_slam_trans_dis_2/2D_robust_PGO/build && $(MAKE) -f CMakeFiles/Makefile2 examples/CMakeFiles/RRR_2D_optimizer_g2o.dir/rule
 .PHONY : examples/CMakeFiles/RRR_2D_optimizer_g2o.dir/rule
 
 # Convenience name for target.
@@ -122,7 +122,7 @@ RRR_2D_optimizer_g2o: examples/CMakeFiles/RRR_2D_optimizer_g2o.dir/rule
 
 # fast build rule for target.
 RRR_2D_optimizer_g2o/fast:
-	cd /home/zihao/cprogram/code/robustSLAM/robuts_slam_trans_dis_2/build && $(MAKE) -f examples/CMakeFiles/RRR_2D_optimizer_g2o.dir/build.make examples/CMakeFiles/RRR_2D_optimizer_g2o.dir/build
+	cd /home/zihao/cprogram/code/robustSLAM/robuts_slam_trans_dis_2/2D_robust_PGO/build && $(MAKE) -f examples/CMakeFiles/RRR_2D_optimizer_g2o.dir/build.make examples/CMakeFiles/RRR_2D_optimizer_g2o.dir/build
 .PHONY : RRR_2D_optimizer_g2o/fast
 
 2D_optimizer_g2o.o: 2D_optimizer_g2o.cpp.o
@@ -131,7 +131,7 @@ RRR_2D_optimizer_g2o/fast:
 
 # target to build an object file
 2D_optimizer_g2o.cpp.o:
-	cd /home/zihao/cprogram/code/robustSLAM/robuts_slam_trans_dis_2/build && $(MAKE) -f examples/CMakeFiles/RRR_2D_optimizer_g2o.dir/build.make examples/CMakeFiles/RRR_2D_optimizer_g2o.dir/2D_optimizer_g2o.cpp.o
+	cd /home/zihao/cprogram/code/robustSLAM/robuts_slam_trans_dis_2/2D_robust_PGO/build && $(MAKE) -f examples/CMakeFiles/RRR_2D_optimizer_g2o.dir/build.make examples/CMakeFiles/RRR_2D_optimizer_g2o.dir/2D_optimizer_g2o.cpp.o
 .PHONY : 2D_optimizer_g2o.cpp.o
 
 2D_optimizer_g2o.i: 2D_optimizer_g2o.cpp.i
@@ -140,7 +140,7 @@ RRR_2D_optimizer_g2o/fast:
 
 # target to preprocess a source file
 2D_optimizer_g2o.cpp.i:
-	cd /home/zihao/cprogram/code/robustSLAM/robuts_slam_trans_dis_2/build && $(MAKE) -f examples/CMakeFiles/RRR_2D_optimizer_g2o.dir/build.make examples/CMakeFiles/RRR_2D_optimizer_g2o.dir/2D_optimizer_g2o.cpp.i
+	cd /home/zihao/cprogram/code/robustSLAM/robuts_slam_trans_dis_2/2D_robust_PGO/build && $(MAKE) -f examples/CMakeFiles/RRR_2D_optimizer_g2o.dir/build.make examples/CMakeFiles/RRR_2D_optimizer_g2o.dir/2D_optimizer_g2o.cpp.i
 .PHONY : 2D_optimizer_g2o.cpp.i
 
 2D_optimizer_g2o.s: 2D_optimizer_g2o.cpp.s
@@ -149,7 +149,7 @@ RRR_2D_optimizer_g2o/fast:
 
 # target to generate assembly for a file
 2D_optimizer_g2o.cpp.s:
-	cd /home/zihao/cprogram/code/robustSLAM/robuts_slam_trans_dis_2/build && $(MAKE) -f examples/CMakeFiles/RRR_2D_optimizer_g2o.dir/build.make examples/CMakeFiles/RRR_2D_optimizer_g2o.dir/2D_optimizer_g2o.cpp.s
+	cd /home/zihao/cprogram/code/robustSLAM/robuts_slam_trans_dis_2/2D_robust_PGO/build && $(MAKE) -f examples/CMakeFiles/RRR_2D_optimizer_g2o.dir/build.make examples/CMakeFiles/RRR_2D_optimizer_g2o.dir/2D_optimizer_g2o.cpp.s
 .PHONY : 2D_optimizer_g2o.cpp.s
 
 # Help Target
@@ -175,6 +175,6 @@ help:
 # No rule that depends on this can have commands that come from listfiles
 # because they might be regenerated.
 cmake_check_build_system:
-	cd /home/zihao/cprogram/code/robustSLAM/robuts_slam_trans_dis_2/build && $(CMAKE_COMMAND) -H$(CMAKE_SOURCE_DIR) -B$(CMAKE_BINARY_DIR) --check-build-system CMakeFiles/Makefile.cmake 0
+	cd /home/zihao/cprogram/code/robustSLAM/robuts_slam_trans_dis_2/2D_robust_PGO/build && $(CMAKE_COMMAND) -H$(CMAKE_SOURCE_DIR) -B$(CMAKE_BINARY_DIR) --check-build-system CMakeFiles/Makefile.cmake 0
 .PHONY : cmake_check_build_system
 

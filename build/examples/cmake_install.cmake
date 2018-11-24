@@ -1,4 +1,4 @@
-# Install script for directory: /home/zihao/cprogram/code/robustSLAM/robuts_slam_trans_dis_2/examples
+# Install script for directory: /home/zihao/cprogram/code/robustSLAM/robuts_slam_trans_dis_2/2D_robust_PGO/examples
 
 # Set the install prefix
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)

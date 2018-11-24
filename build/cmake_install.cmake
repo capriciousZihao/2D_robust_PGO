@@ -1,4 +1,4 @@
-# Install script for directory: /home/zihao/cprogram/code/robustSLAM/robuts_slam_trans_dis_2
+# Install script for directory: /home/zihao/cprogram/code/robustSLAM/robuts_slam_trans_dis_2/2D_robust_PGO
 
 # Set the install prefix
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)
@@ -34,7 +34,7 @@ endif()
 
 if(NOT CMAKE_INSTALL_LOCAL_ONLY)
   # Include the install script for each subdirectory.
-  include("/home/zihao/cprogram/code/robustSLAM/robuts_slam_trans_dis_2/build/examples/cmake_install.cmake")
+  include("/home/zihao/cprogram/code/robustSLAM/robuts_slam_trans_dis_2/2D_robust_PGO/build/examples/cmake_install.cmake")
 
 endif()
 
@@ -46,5 +46,5 @@ endif()
 
 string(REPLACE ";" "\n" CMAKE_INSTALL_MANIFEST_CONTENT
        "${CMAKE_INSTALL_MANIFEST_FILES}")
-file(WRITE "/home/zihao/cprogram/code/robustSLAM/robuts_slam_trans_dis_2/build/${CMAKE_INSTALL_MANIFEST}"
+file(WRITE "/home/zihao/cprogram/code/robustSLAM/robuts_slam_trans_dis_2/2D_robust_PGO/build/${CMAKE_INSTALL_MANIFEST}"
      "${CMAKE_INSTALL_MANIFEST_CONTENT}")
