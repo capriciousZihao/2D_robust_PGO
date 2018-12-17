@@ -130,7 +130,15 @@ class find_element{
 		}
 		return serial;
 	}
-
+	int find(std::vector<int > & vector, double obj)
+	{
+		for(int i = 0; i < vector.size(); i++)
+		{
+			if(vector[i] == obj)
+				return i;
+		}
+		return -1;
+	}
 
 	int find(std::vector<double > & vector, double obj)
 	{

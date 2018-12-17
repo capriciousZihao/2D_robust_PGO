@@ -510,7 +510,139 @@ public:
 		// // exit(0);
 		return false;
 	}
+	void generateNewEdge_parallel(const std::pair<int, int> & loop_node_pair, 
+						std::vector< g2o::HyperGraph::Edge* > & newEdgeVector,
+						std::vector<std::pair<int,int > > & artificialLoops, int futileDis, int maxVertexID,
+						bool adjoint)
+	{
+			int start = loop_node_pair.first, end = loop_node_pair.second;
+			bool fultileBit1;
+			g2o::SE2  TransOdoSeg, TransLoop, newTrans, new_trans_start, containerINverse, newTrans_final;
+			std::pair<g2o::SE2, Matrix3d > result_synthetic_odo;
+			Matrix3d  covOdoSeg, covOdoSeg_start, covLoop, newCov, j1, j2, newCov_final;
+			std::array<std::array<double, 5>, 5>  length;
+			int nodeNum = clusterizer.VertexInf.size();
 
+			// construct the test loop SE2 MATRIX3D
+			TransLoop = clusterizer.LP_Trans_Covar_Map[loop_node_pair].first;
+			containerINverse = TransLoop.inverse();
+			covLoop = clusterizer.LP_Trans_Covar_Map[loop_node_pair].second;
+			cout<<"cov of "<<start <<" "<<end <<" is "<<endl<<covLoop<<" "<<endl;
+			// cin.get();
+         	cout<<"loop "<<start<<" "<<end<<endl;
+         	if(abs(end - start) > 20)
+         	{
+	         	int nodeStep = (end - start)/19, nextNode, nextNode_1; 
+         		// nodeStep = 1*nodeStep/abs(nodeStep);
+	         	if(abs(nodeStep) > futileDis)
+	         	{
+	         		int mid = (nodeStep)/(abs(nodeStep))*futileDis;
+	         		nodeStep = mid;
+	         	}
+	         	cout<<"node step is "<<nodeStep<<endl;
+	         	for(int i = 0; i < 4; i++)
+	         	{
+	         		// create a new edge
+	         		g2o::EdgeSE2* newEdge =  new g2o::EdgeSE2(); 
+	         		// calculate the next node
+	         		nextNode_1 = end - (i+1)*nodeStep;
+	         		
+	         		// cout<<"start "<<start<<" nextNode "<<nextNode<<endl;
+	         		//initialize the vertex  g2o::VertexSE2, g2o::EdgeSE2
+
+	         		// calculate the measurement and information matrix
+	         			// cal the odo part
+	         		if(end < nextNode_1)
+					{
+						cout<<"end odo segment "<<end<<" to "<<nextNode_1<<endl;
+
+						if(adjoint)
+							clusterizer.synthesize_odo_edges_adjoint(end, nextNode_1, clusterizer.OdoInf, result_synthetic_odo.first, 
+								result_synthetic_odo.second, length[0], fultileBit1);
+						else
+							clusterizer.accelerated_synthetic_odo(end, nextNode_1, clusterizer.OdoInf, 
+								result_synthetic_odo,  length[0], fultileBit1);
+
+						TransOdoSeg = result_synthetic_odo.first;
+						covOdoSeg   = result_synthetic_odo.second;				
+					}
+	         		else
+					{
+						cout<<"end odo segment re "<<nextNode_1<<" to "<<end<<endl;
+						if(adjoint)
+							clusterizer.synthesize_odo_edges_adjoint(nextNode_1, end, clusterizer.OdoInf, result_synthetic_odo.first, 
+								result_synthetic_odo.second, length[0], fultileBit1);
+						else
+							clusterizer.accelerated_synthetic_odo(nextNode_1, end, clusterizer.OdoInf, 
+								result_synthetic_odo,  length[0], fultileBit1);
+						TransOdoSeg = result_synthetic_odo.first.inverse();
+						covOdoSeg   = result_synthetic_odo.second;				
+					}
+					// cout<<"TransOdoSeg "<<TransOdoSeg[0]<<" "<<TransOdoSeg[1]<<" "<<TransOdoSeg[2]<<endl;
+					// cout<<"TransLoop   "<<TransLoop[0]<<" "<<TransLoop[1]<<" "<<TransLoop[2]<<endl;
+					newTrans = TransLoop * TransOdoSeg;
+					// cout<<"synthesized trnas: "<<newTrans[0]<<" "<<newTrans[1]<<" "<<newTrans[2]<<endl;
+					// cout<<
+
+					clusterizer.Jacobian_4_edge_propagate(TransLoop, TransOdoSeg, j1, j2);
+					clusterizer.covariance_propagate(covLoop, covOdoSeg, j1, j2, newCov);
+
+
+					//calculate the start segment
+					nextNode = start + (i+1)*nodeStep;
+	         		if(start < nextNode)
+					{
+						cout<<"start odo segment re "<<start<<" to "<<nextNode<<endl;
+						if(adjoint)
+							clusterizer.synthesize_odo_edges_adjoint(start, nextNode, clusterizer.OdoInf, result_synthetic_odo.first, 
+								result_synthetic_odo.second, length[0], fultileBit1);
+						else
+							clusterizer.accelerated_synthetic_odo(start, nextNode, clusterizer.OdoInf, 
+								result_synthetic_odo,  length[0], fultileBit1);
+						new_trans_start = result_synthetic_odo.first.inverse();
+						covOdoSeg_start   = result_synthetic_odo.second;				
+					}
+	         		else
+					{
+						cout<<"start odo segment "<<nextNode<<" to "<<start<<endl;
+						if(adjoint)
+							clusterizer.synthesize_odo_edges_adjoint(nextNode, start, clusterizer.OdoInf, result_synthetic_odo.first, 
+								result_synthetic_odo.second, length[0], fultileBit1);
+						else						
+							clusterizer.accelerated_synthetic_odo(nextNode, start, clusterizer.OdoInf, 
+								result_synthetic_odo,  length[0], fultileBit1);
+						new_trans_start = result_synthetic_odo.first;
+						covOdoSeg_start   = result_synthetic_odo.second;				
+					}
+					// cout<<"TransOdoSeg "<<TransOdoSeg[0]<<" "<<TransOdoSeg[1]<<" "<<TransOdoSeg[2]<<endl;
+					// cout<<"TransLoop   "<<TransLoop[0]<<" "<<TransLoop[1]<<" "<<TransLoop[2]<<endl;
+
+					newTrans_final = new_trans_start * newTrans;
+					cout<<"synthesized trnas: "<<newTrans_final[0]<<" "<<newTrans_final[1]<<" "<<newTrans_final[2]<<endl;
+					// cout<<
+
+					clusterizer.Jacobian_4_edge_propagate(new_trans_start, newTrans, j1, j2);
+					clusterizer.covariance_propagate(covOdoSeg_start, newCov, j1, j2, newCov_final);
+					cout<<"synthesized edge "<<nextNode <<" "<< nextNode_1<<" cov is "<<endl<<newCov_final<<" "<<endl;
+					cout<<" "<<endl;
+
+	         		// assign measurement and information to it
+	         		newEdge->setVertex( 0, dynamic_cast<g2o::VertexSE2*> (gWrapper->optimizer->vertex(nextNode)) );
+	         		newEdge->setVertex( 1, dynamic_cast<g2o::VertexSE2*> (gWrapper->optimizer->vertex(nextNode_1)) );	         		
+	         		newEdge->setMeasurement( newTrans_final );
+	         		newEdge->setInformation( newCov_final.inverse() );
+	         		// store the new edge 
+	         		newEdgeVector.push_back(newEdge);
+	         		artificialLoops.push_back(std::pair<int, int>(nextNode, nextNode_1));
+	         	}
+
+         	}
+         	else
+         	{
+         		cout<<"the node dis between start and end node <= 4, so do not make new edge for it"<<endl;
+         		return;
+         	}
+	}
 	void generateNewEdge(const std::pair<int, int> & loop_node_pair, 
 						std::vector< g2o::HyperGraph::Edge* > & newEdgeVector,
 						std::vector<std::pair<int,int > > & artificialLoops, int futileDis, int maxVertexID)
@@ -528,27 +660,77 @@ public:
 			covLoop = clusterizer.LP_Trans_Covar_Map[loop_node_pair].second;
 			// cout<<"covLoop is "<<covLoop<<endl;
 			// cin.get();
-         	
-         	if(abs(end - start) > 10)
+         	cout<<"loop "<<start<<" "<<end<<endl;
+         	if(abs(end - start) > 20)
          	{
-	         	int nodeStep = (end - start)/8, nextNode;
-
+	         	int nodeStep = (end - start)/20, nextNode;
+         		nodeStep = nodeStep/abs(nodeStep);
 	         	if(abs(nodeStep) > futileDis)
 	         	{
 	         		int mid = (nodeStep)/(abs(nodeStep))*futileDis;
 	         		nodeStep = mid;
 	         	}
-	         	cout<<"node step is "<<nodeStep<<endl;
-	         	for(int i = 0; i < 3; i++)
+	         	// cout<<"node step is "<<nodeStep<<endl;
+	         	for(int i = 0; i < 5; i++)
 	         	{
 	         		// create a new edge
 	         		g2o::EdgeSE2* newEdge =  new g2o::EdgeSE2(); 
 	         		// calculate the next node
 	         		nextNode = end - (i+1)*nodeStep;
 	         		artificialLoops.push_back(std::pair<int, int>(start, nextNode));
-	         		cout<<"start "<<start<<" nextNode "<<nextNode<<endl;
+	         		// cout<<"start "<<start<<" nextNode "<<nextNode<<endl;
 	         		//initialize the vertex  g2o::VertexSE2, g2o::EdgeSE2
 	         		newEdge->setVertex( 0, dynamic_cast<g2o::VertexSE2*> (gWrapper->optimizer->vertex(start)) );
+	         		newEdge->setVertex( 1, dynamic_cast<g2o::VertexSE2*> (gWrapper->optimizer->vertex(nextNode)) );
+	         		// calculate the measurement and information matrix
+	         			// cal the odo part
+	         		if(end < nextNode)
+					{
+						// cout<<"odo segment "<<end<<" to "<<nextNode<<endl;
+						clusterizer.accelerated_synthetic_odo(end, nextNode, clusterizer.OdoInf, 
+							result_synthetic_odo,  length[0], 
+							fultileBit1);
+						TransOdoSeg = result_synthetic_odo.first;
+						covOdoSeg   = result_synthetic_odo.second;				
+					}
+	         		else
+					{
+						// cout<<"odo segment "<<nextNode<<" to "<<end<<endl;
+						clusterizer.accelerated_synthetic_odo(nextNode, end, clusterizer.OdoInf, 
+							result_synthetic_odo,  length[0], 
+							fultileBit1);
+						TransOdoSeg = result_synthetic_odo.first.inverse();
+						covOdoSeg   = result_synthetic_odo.second;				
+					}
+					// cout<<"TransOdoSeg "<<TransOdoSeg[0]<<" "<<TransOdoSeg[1]<<" "<<TransOdoSeg[2]<<endl;
+					// cout<<"TransLoop   "<<TransLoop[0]<<" "<<TransLoop[1]<<" "<<TransLoop[2]<<endl;
+					newTrans = TransLoop * TransOdoSeg;
+					// cout<<"synthesized trnas: "<<newTrans[0]<<" "<<newTrans[1]<<" "<<newTrans[2]<<endl;
+					// cout<<
+
+					clusterizer.Jacobian_4_edge_propagate(TransLoop, TransOdoSeg, j1, j2);
+					clusterizer.covariance_propagate(covLoop, covOdoSeg, j1, j2, newCov);
+
+	         		// assign measurement and information to it
+	         		newEdge->setMeasurement( newTrans );
+	         		newEdge->setInformation( newCov.inverse() );
+	         		// store the new edge 
+	         		newEdgeVector.push_back(newEdge);
+	         	}
+
+	  /*       	for(int i = 0; i < 4; i++)
+	         	{
+
+	         		// create a new edge
+	         		g2o::EdgeSE2* newEdge =  new g2o::EdgeSE2(); 
+	         		// calculate the next node
+	         		nextNode = end + (i+1)*nodeStep;
+	         		if(nextNode > maxVertexID)
+	         			continue;
+	         		artificialLoops.push_back(std::pair<int, int>(start, nextNode));
+	         		cout<<"nextNode "<<start<<" end "<<nextNode<<endl;
+	         		//initialize the vertex  g2o::VertexSE2, g2o::EdgeSE2
+	         		newEdge->setVertex( 0, dynamic_cast<g2o::VertexSE2*> (gWrapper->optimizer->vertex(start )) );
 	         		newEdge->setVertex( 1, dynamic_cast<g2o::VertexSE2*> (gWrapper->optimizer->vertex(nextNode)) );
 	         		// calculate the measurement and information matrix
 	         			// cal the odo part
@@ -563,14 +745,14 @@ public:
 					}
 	         		else
 					{
-						cout<<"odo segment "<<nextNode<<" to "<<end<<endl;
+						cout<<"odo segment "<<nextNode<<" to "<<start<<endl;
 						clusterizer.accelerated_synthetic_odo(nextNode, end, clusterizer.OdoInf, 
 							result_synthetic_odo,  length[0], 
 							fultileBit1);
-						TransOdoSeg = result_synthetic_odo.first;
+						TransOdoSeg = result_synthetic_odo.first.inverse();
 						covOdoSeg   = result_synthetic_odo.second;				
 					}
-					newTrans = TransLoop * TransOdoSeg;
+					newTrans = TransLoop *TransOdoSeg;
 
 					clusterizer.Jacobian_4_edge_propagate(TransLoop, TransOdoSeg, j1, j2);
 					clusterizer.covariance_propagate(covLoop, covOdoSeg, j1, j2, newCov);
@@ -580,90 +762,46 @@ public:
 	         		newEdge->setInformation( newCov.inverse() );
 	         		// store the new edge 
 	         		newEdgeVector.push_back(newEdge);
-	         	}
-
-	    //      	for(int i = 0; i < 4; i++)
-	    //      	{
-
-	    //      		// create a new edge
-	    //      		g2o::EdgeSE2* newEdge =  new g2o::EdgeSE2(); 
-	    //      		// calculate the next node
-	    //      		nextNode = start + (i+1)*nodeStep;
-	    //      		artificialLoops.push_back(std::pair<int, int>(start, nextNode));
-	    //      		cout<<"nextNode "<<start<<" end "<<nextNode<<endl;
-	    //      		//initialize the vertex  g2o::VertexSE2, g2o::EdgeSE2
-	    //      		newEdge->setVertex( 0, dynamic_cast<g2o::VertexSE2*> (gWrapper->optimizer->vertex(nextNode)) );
-	    //      		newEdge->setVertex( 1, dynamic_cast<g2o::VertexSE2*> (gWrapper->optimizer->vertex(end)) );
-	    //      		// calculate the measurement and information matrix
-	    //      			// cal the odo part
-	    //      		if(start < nextNode)
-					// {
-					// 	cout<<"odo segment "<<start<<" to "<<nextNode<<endl;
-					// 	clusterizer.accelerated_synthetic_odo(start, nextNode, clusterizer.OdoInf, 
-					// 		result_synthetic_odo,  length[0], 
-					// 		fultileBit1);
-					// 	TransOdoSeg = result_synthetic_odo.first;
-					// 	covOdoSeg   = result_synthetic_odo.second;				
-					// }
-	    //      		else
-					// {
-					// 	cout<<"odo segment "<<nextNode<<" to "<<start<<endl;
-					// 	clusterizer.accelerated_synthetic_odo(nextNode, start, clusterizer.OdoInf, 
-					// 		result_synthetic_odo,  length[0], 
-					// 		fultileBit1);
-					// 	TransOdoSeg = result_synthetic_odo.first;
-					// 	covOdoSeg   = result_synthetic_odo.second;				
-					// }
-					// newTrans = containerINverse * TransOdoSeg;
-
-					// clusterizer.Jacobian_4_edge_propagate(containerINverse, TransOdoSeg, j1, j2);
-					// clusterizer.covariance_propagate(covLoop, covOdoSeg, j1, j2, newCov);
-
-	    //      		// assign measurement and information to it
-	    //      		newEdge->setMeasurement( newTrans );
-	    //      		newEdge->setInformation( newCov.inverse() );
-	    //      		// store the new edge 
-	    //      		newEdgeVector.push_back(newEdge);
-	    //      	}	         	
+	         	}	         	*/
     //      		// create a new edge
-         		g2o::EdgeSE2* newEdge =  new g2o::EdgeSE2(); 
-         		// calculate the next node
-         		nextNode = end + nodeStep;
-         		if(nextNode > maxVertexID or nextNode < 0)
-         			return;
-         		artificialLoops.push_back(std::pair<int, int>(start, nextNode));
-         		cout<<"nextNode  is "<<nextNode<<endl;
-         		//initialize the vertex  g2o::VertexSE2, g2o::EdgeSE2
-         		newEdge->setVertex( 0, dynamic_cast<g2o::VertexSE2*> (gWrapper->optimizer->vertex(start)) );
-         		newEdge->setVertex( 1, dynamic_cast<g2o::VertexSE2*> (gWrapper->optimizer->vertex(nextNode)) );
-         		// calculate the measurement and information matrix
-         			// cal the odo part
-         		if(end < nextNode)
-				{
-					clusterizer.accelerated_synthetic_odo(end, nextNode, clusterizer.OdoInf, 
-						result_synthetic_odo,  length[0], 
-						fultileBit1);
-					TransOdoSeg = result_synthetic_odo.first;
-					covOdoSeg   = result_synthetic_odo.second;				
-				}
-         		else
-				{
-					clusterizer.accelerated_synthetic_odo(nextNode, end, clusterizer.OdoInf, 
-						result_synthetic_odo,  length[0], 
-						fultileBit1);
-					TransOdoSeg = result_synthetic_odo.first;
-					covOdoSeg   = result_synthetic_odo.second;				
-				}
-				newTrans = TransLoop * TransOdoSeg;
+    //      		g2o::EdgeSE2* newEdge =  new g2o::EdgeSE2(); 
+    //      		// calculate the next node
+    //      		nextNode = end + nodeStep;
+    //      		if(nextNode > maxVertexID or nextNode < 0)
+    //      			return;
+    //      		artificialLoops.push_back(std::pair<int, int>(start, nextNode));
+    //      		cout<<"nextNode  is "<<nextNode<<endl;
+    //      		//initialize the vertex  g2o::VertexSE2, g2o::EdgeSE2
+    //      		newEdge->setVertex( 0, dynamic_cast<g2o::VertexSE2*> (gWrapper->optimizer->vertex(start)) );
+    //      		newEdge->setVertex( 1, dynamic_cast<g2o::VertexSE2*> (gWrapper->optimizer->vertex(nextNode)) );
+    //      		// calculate the measurement and information matrix
+    //      			// cal the odo part
+    //      		if(end < nextNode)
+				// {
+				// 	clusterizer.accelerated_synthetic_odo(end, nextNode, clusterizer.OdoInf, 
+				// 		result_synthetic_odo,  length[0], 
+				// 		fultileBit1);
+				// 	TransOdoSeg = result_synthetic_odo.first;
+				// 	covOdoSeg   = result_synthetic_odo.second;				
+				// }
+    //      		else
+				// {
+				// 	clusterizer.accelerated_synthetic_odo(nextNode, end, clusterizer.OdoInf, 
+				// 		result_synthetic_odo,  length[0], 
+				// 		fultileBit1);
+				// 	TransOdoSeg = result_synthetic_odo.first;
+				// 	covOdoSeg   = result_synthetic_odo.second;				
+				// }
+				// newTrans = TransLoop * TransOdoSeg;
 
-				clusterizer.Jacobian_4_edge_propagate(TransLoop, TransOdoSeg, j1, j2);
-				clusterizer.covariance_propagate(covLoop, covOdoSeg, j1, j2, newCov);
+				// clusterizer.Jacobian_4_edge_propagate(TransLoop, TransOdoSeg, j1, j2);
+				// clusterizer.covariance_propagate(covLoop, covOdoSeg, j1, j2, newCov);
 
-         		// assign measurement and information to it
-         		newEdge->setMeasurement( newTrans );
-         		newEdge->setInformation( newCov.inverse() );
-         		// store the new edge 
-         		newEdgeVector.push_back(newEdge);
+    //      		// assign measurement and information to it
+    //      		newEdge->setMeasurement( newTrans );
+    //      		newEdge->setInformation( newCov.inverse() );
+    //      		// store the new edge 
+    //      		newEdgeVector.push_back(newEdge);
 
          	}
          	else
@@ -869,7 +1007,8 @@ public:
 						}
 						//
 						serial_good = good_loop_node_distance_pair_vector[oritianl_test_times - testTime].first;
-						cout<<"god loop "<<goodLoops[serial_good].first<<" "<<goodLoops[serial_good].second<<
+						cout<<"god loop "<<goodLoops[serial_good].first<<" "<<goodLoops[serial_good].second<<" in cluster "<<
+							clusterizer.getClusterID(goodLoops[serial_good])<<
 							" with node dis "<<good_loop_node_distance_pair_vector[testTime].second<<endl;
 
 						if((good_loop_node_distance_pair_vector[testTime].second > abs(badLoops[badNum].first - badLoops[badNum].second)) and
@@ -1545,31 +1684,35 @@ public:
         string ba = "sdf", aa = "aa";
 
         std::vector< g2o::HyperGraph::Edge* > newEdgeVector;
-        if(originalTotalNum == 1)
-        {
-        	std::vector<std::pair<int, int>> artificialLoops;
-        	int maxVertexID = gWrapper->optimizer->vertices().size();
-        	int futileDis;
-        	if(clusterizer.futilePairVector.size() != 0)
-        		futileDis = abs(clusterizer.futilePairVector[0].first - clusterizer.futilePairVector[0].second);
-        	else
-        		futileDis = maxVertexID;
+   //      if(originalTotalNum == 1)
+   //      {
+        	// std::vector<std::pair<int, int>> artificialLoops;
+        	// int maxVertexID = gWrapper->optimizer->vertices().size();
+        	// int futileDis;
+        	// if(clusterizer.futilePairVector.size() != 0)
+        	// 	futileDis = abs(clusterizer.futilePairVector[0].first - clusterizer.futilePairVector[0].second);
+        	// else
+        	// 	futileDis = maxVertexID;
         	
         	// generateNewEdge(*(currentCluster.begin()), newEdgeVector, artificialLoops, futileDis, maxVertexID);
-			chi2LinkErrors =  
-				// gWrapper->optimize_oneMember(currentCluster, small_numIterations, newEdgeVector, artificialLoops);
-				gWrapper->optimize_active_robustKernel(currentCluster, small_numIterations, 
-										  startRange, endRange, odoEdgeError);
-        }
-        else
+			// chi2LinkErrors =  
+			// 	gWrapper->optimize_oneMember(currentCluster, small_numIterations, newEdgeVector, artificialLoops);
+			// 	gWrapper->optimize_active_robustKernel(currentCluster, small_numIterations, 
+			// 							  startRange, endRange, odoEdgeError);
+   //      }
+   //      else
+        cout<<"run complementary intra"<<endl;
         {
 			chi2LinkErrors =  		
+				// gWrapper->optimize_active_robustKernel(currentCluster, small_numIterations, 
+				// 						  startRange, endRange, odoEdgeError, newEdgeVector, artificialLoops);
 				gWrapper->optimize_active_robustKernel(currentCluster, small_numIterations, 
-										  startRange, endRange, odoEdgeError);
+										  startRange, endRange, odoEdgeError);				
+				// gWrapper->optimize_robustKernel(currentCluster, small_numIterations, odoEdgeError);
         }
 
 		float activeChi2Graph = chi2LinkErrors[IntPair(-1,0)];
-		int   activeEdgeCount = chi2LinkErrors[IntPair(-1,-1)];
+		int   activeEdgeCount = chi2LinkErrors[IntPair(-1,-1)], loopCount;
 		cout<<"active edge count: "<<activeEdgeCount<<endl;
 		//check if there is someone loop whose chi2 error is bigger than the signgle edge limit error
 		double biggestErr = 0, smallcHI = 200;
@@ -1691,6 +1834,9 @@ public:
 					break;
 				}
 
+				cout<<"chech if the program can run the next code"<<endl;
+				cin.get();
+
 				good_loop_node_distance_pair_vector.clear();
 				
 				if(goodLoops.size() >= 1)
@@ -1783,19 +1929,6 @@ public:
 						{
 							clusterizer.prepare_to_signle_loop_pair_check(badLoops[badNum], goodLoops[serial_good], 
 								FullInfo,  clusterizer.LP_Trans_Covar_Map, length, futileBit1, futileBit2);
-							// cout<<"chi %05: "<<utils::chi2_continuous(3, 0.05)<<endl;
-							// cout<<"chi %10: "<<utils::chi2_continuous(3, 0.1)<<endl;
-							// cout<<"chi %20: "<<utils::chi2_continuous(3, 0.2)<<endl;
-							// cout<<"chi %30: "<<utils::chi2_continuous(3, 0.3)<<endl;
-							// cout<<"chi %40: "<<utils::chi2_continuous(3, 0.4)<<endl;
-							// cout<<"chi %50: "<<utils::chi2_continuous(3, 0.5)<<endl;
-							// cout<<"chi %60: "<<utils::chi2_continuous(3, 0.6)<<endl;
-							// cout<<"chi %70: "<<utils::chi2_continuous(3, 0.7)<<endl;
-							// cout<<"chi %80: "<<utils::chi2_continuous(3, 0.8)<<endl;
-							// cout<<"chi %90: "<<utils::chi2_continuous(3, 0.9)<<endl;
-							// cout<<"chi %95: "<<utils::chi2_continuous(3, 0.95)<<endl;
-							// cout<<"chi %99: "<<utils::chi2_continuous(3, 0.99)<<endl;
-
 							// cout<<"%95 : "<<utils::chi2_p(3, utils::chi2_continuous(3, 0.99) )<<endl;
 							// cin.get();
 
@@ -1868,9 +2001,27 @@ public:
 				endRange   = *clusterNodeSet.rbegin();
 
 				chi2LinkErrors.clear();
+
+	        	std::vector<std::pair<int, int>> artificialLoops;
+	        	int maxVertexID = gWrapper->optimizer->vertices().size();
+	        	int futileDis;
+	        	if(clusterizer.futilePairVector.size() != 0)
+	        		futileDis = abs(clusterizer.futilePairVector[0].first - clusterizer.futilePairVector[0].second);
+	        	else
+	        		futileDis = maxVertexID;
+	        	generateNewEdge(*(currentCluster.begin()), newEdgeVector, artificialLoops, futileDis, maxVertexID);
+	        	// generateNewEdge_parallel(*(currentCluster.begin()), newEdgeVector, artificialLoops, futileDis, maxVertexID, 0);
+	        	if(currentCluster.size() > 1)
+	        	{
+	        		generateNewEdge(*(currentCluster.rbegin()), newEdgeVector, artificialLoops, futileDis, maxVertexID);
+	        		// generateNewEdge_parallel(*(currentCluster.rbegin()), newEdgeVector, artificialLoops, futileDis, maxVertexID, 1);
+	        	}
+	        	
 				// chi2LinkErrors = gWrapper->optimize(currentCluster, small_numIterations, odoEdgeRelateLC_Error, odoEdgeError);
 				chi2LinkErrors = gWrapper->optimize_active_robustKernel(currentCluster, small_numIterations, 
-										  startRange, endRange, odoEdgeError);
+										  startRange, endRange, odoEdgeError, newEdgeVector, artificialLoops);	
+								// gWrapper->optimize_active_robustKernel(currentCluster, small_numIterations, 
+								// 		  startRange, endRange, odoEdgeError);
 
 				activeEdgeCount = chi2LinkErrors[IntPair(-1,-1)];
 				if(chi2LinkErrors[IntPair(-1,0)] < utils::chi2_continuous(edgeDimension* activeEdgeCount, 0.95) and
@@ -1916,12 +2067,33 @@ public:
 			endRange   = *clusterNodeSet.rbegin();
 
 			chi2LinkErrors.clear();
+
+	        	std::vector<std::pair<int, int>> artificialLoops;
+	        	int maxVertexID = gWrapper->optimizer->vertices().size();
+	        	int futileDis;
+	        	if(clusterizer.futilePairVector.size() != 0)
+	        		futileDis = abs(clusterizer.futilePairVector[0].first - clusterizer.futilePairVector[0].second);
+	        	else
+	        		futileDis = maxVertexID;
+	        	generateNewEdge(*(currentCluster.begin()), newEdgeVector, artificialLoops, futileDis, maxVertexID);
+	        	// generateNewEdge_parallel(*(currentCluster.begin()), newEdgeVector, artificialLoops, futileDis, maxVertexID, 1);
+	        	if(currentCluster.size() > 1)
+	        	{
+	        		generateNewEdge(*(currentCluster.rbegin()), newEdgeVector, artificialLoops, futileDis, maxVertexID);
+	        		// generateNewEdge_parallel(*(currentCluster.rbegin()), newEdgeVector, artificialLoops, futileDis, maxVertexID, 1);
+	        	}
+				// chi2LinkErrors = gWrapper->optimize(currentCluster, small_numIterations, odoEdgeRelateLC_Error, odoEdgeError);
+				chi2LinkErrors = gWrapper->optimize_active_robustKernel(currentCluster, small_numIterations, 
+										  startRange, endRange, odoEdgeError, newEdgeVector, artificialLoops);	
+								// gWrapper->optimize_active_robustKernel(currentCluster, small_numIterations, 
+								// 		  startRange, endRange, odoEdgeError);			
 			// chi2LinkErrors = gWrapper->optimize(currentCluster, small_numIterations, odoEdgeRelateLC_Error, odoEdgeError);
-			chi2LinkErrors = gWrapper->optimize_active_robustKernel(currentCluster, small_numIterations, 
-									  startRange, endRange, odoEdgeError);
+			// chi2LinkErrors = gWrapper->optimize_active_robustKernel(currentCluster, small_numIterations, 
+			// 						  startRange, endRange, odoEdgeError);
 
 			activeChi2Graph = chi2LinkErrors[IntPair(-1,0)];
 			activeEdgeCount = chi2LinkErrors[IntPair(-1,-1)];
+			loopCount = chi2LinkErrors[IntPair(-2,-1)];
 			eIt = chi2LinkErrors.begin();
 			eEnd = chi2LinkErrors.end();
 			biggestErr = 0;
@@ -1953,7 +2125,8 @@ public:
 			cout<<"activeChi2Graph is "<<activeChi2Graph<<endl;
 			if(badLoops.size() == 0)
 			{
-				if(activeChi2Graph > utils::chi2_continuous(edgeDimension* activeEdgeCount, 0.95))
+				if(activeChi2Graph > utils::chi2_continuous(edgeDimension* activeEdgeCount, 0.95) or 
+					chi2LinkErrors[IntPair(-2,0)] > utils::chi2_continuous(edgeDimension* loopCount, 0.95) )
 				{
 					std::cerr<<"deleted Cluster "<<" have "<<realOrigianlNum<<" links "<<std::endl;
 					return 0;
@@ -1971,9 +2144,13 @@ public:
 			}			
 		}
 	}
-	bool complementary_intra_multi(IntPairSet & currentCluster, std::vector<double> & chiStatisVector, std::vector<std::pair<int, int> > & doubtLoopNumberVector, 
-		int & originalLoopNum, std::vector<std::pair<double, std::pair<int, int> > > & chiStstis4eachLoop, std::set<int> & clusters_set)
+	bool complementary_intra_multi(IntPairSet & currentCluster, std::vector<double> & chiStatisVector, 
+		std::vector<std::pair<int, int> > & doubtLoopNumberVector, 
+		int & originalLoopNum, std::vector<std::pair<double, std::pair<int, int> > > & chiStstis4eachLoop, 
+		std::set<int> & clusters_set)
 	{
+		if(clusters_set.size()== 1)
+			return 1;
 		IntPairDoubleMap chi2LinkErrors;
 
 		std::vector<std::pair<int,int> > goodLoops, badLoops;
@@ -2012,14 +2189,18 @@ public:
         	// generateNewEdge(*(currentCluster.begin()), newEdgeVector, artificialLoops, futileDis, maxVertexID);
 			chi2LinkErrors =  
 				// gWrapper->optimize_oneMember(currentCluster, small_numIterations, newEdgeVector, artificialLoops);
-				gWrapper->optimize_active_robustKernel(currentCluster, small_numIterations, 
-										  startRange, endRange, odoEdgeError);
+				// gWrapper->optimize_active_robustKernel(currentCluster, small_numIterations, 
+				// 						  startRange, endRange, odoEdgeError);
+				gWrapper->optimize_active_robustKernel_multi(currentCluster, small_numIterations, 
+										  startRange, endRange, odoEdgeError);			
         }
         else
         {
 			chi2LinkErrors =  		
-				gWrapper->optimize_active_robustKernel(currentCluster, small_numIterations, 
-										  startRange, endRange, odoEdgeError);
+				// gWrapper->optimize_active_robustKernel(currentCluster, small_numIterations, 
+				// 						  startRange, endRange, odoEdgeError);
+				gWrapper->optimize_active_robustKernel_multi(currentCluster, small_numIterations, 
+										  startRange, endRange, odoEdgeError);				
         }
 
 		float activeChi2Graph = chi2LinkErrors[IntPair(-1,0)];
@@ -2029,8 +2210,66 @@ public:
 		double biggestErr = 0, smallcHI = 200;
 		std::pair<int, int> biggestErrorLoop(-1, -1);
 
+		// find good clusters
+		std::map<int, std::pair<int, int> > to_find_good_clusters;
+		std::set<int> good_clusters;
+		int cluster_id_;
 		cout<<" "<<endl;
 		IntPairDoubleMap::iterator eIt = chi2LinkErrors.begin(), eEnd=chi2LinkErrors.end();
+		// collect each clsuter's bad loop
+		for(; eIt!=eEnd; eIt++)
+		{
+			if(eIt->first.first < 0)
+				continue;
+			cluster_id_ = clusterizer.getClusterID(eIt->first);
+			if(eIt->second > utils::chi2_continuous(edgeDimension, 0.95))		
+			{
+				if(to_find_good_clusters.find(cluster_id_) == to_find_good_clusters.end())
+				{
+					to_find_good_clusters[cluster_id_].second = 1;
+					to_find_good_clusters[cluster_id_].first  = clusterizer.getClusterByID(cluster_id_).size();
+				}
+				else
+					to_find_good_clusters[cluster_id_].second = to_find_good_clusters[cluster_id_].second + 1;
+			}
+			// cout<<"loop "<<eIt->first.first<<" "<<eIt->first.second<<" in cluster "<<clusterizer.loopToClusterIDMap[eIt->first]<<
+			// 	" has error "<< eIt->second<<endl;
+		}
+		// select those clusters whose bad loop propation is less than %50 as good ones
+		std::set<int>::iterator eIt_find_good_cluster = clusters_set.begin(), 
+			eEnd_find_good_cluster = clusters_set.end();
+		// cout<<"clsuters num is "<<clusters_set.size()<<endl;
+		// cin.get();
+		
+		for(; eIt_find_good_cluster!=eEnd_find_good_cluster; eIt_find_good_cluster++)
+		{
+
+			cluster_id_ = *eIt_find_good_cluster;
+			// cout<<"cluster "<<cluster_id_<<endl;
+
+
+			if (to_find_good_clusters.find(cluster_id_) == to_find_good_clusters.end())
+			{
+				// cout<<"add to good cluster set"<<endl;
+				good_clusters.insert(cluster_id_);
+			}
+			else
+			{
+				// cout<<"all loop num = "<<to_find_good_clusters[cluster_id_].first<<"; bad num = "<<
+				// 	to_find_good_clusters[cluster_id_].second<<endl;
+				if(to_find_good_clusters[cluster_id_].second / to_find_good_clusters[cluster_id_].first <  0.5)
+				{
+					// cout<<"add to good cluster set"<<endl;
+					good_clusters.insert(cluster_id_);
+				}
+				else
+				{
+					// cout<<"add to bad cluster set"<<endl;
+				}
+			}
+		}
+
+		eIt = chi2LinkErrors.begin(), eEnd=chi2LinkErrors.end();
 		double goodLoop = 0;
 		for(; eIt!=eEnd; eIt++)
 		{
@@ -2041,10 +2280,19 @@ public:
 				biggestErr = eIt->second;
 				biggestErrorLoop = eIt->first;
 			}
-			if(eIt->second < utils::chi2_continuous(edgeDimension, 0.5))		
+			if(eIt->second < utils::chi2_continuous(edgeDimension, 0.95))		
 			{
-				goodLoop=goodLoop+1;
-				goodLoops.push_back(eIt->first);
+				// good loops should come from good clusters
+				if(good_clusters.find(clusterizer.getClusterID(eIt->first)) != good_clusters.end())
+				{
+					goodLoop=goodLoop+1;
+					goodLoops.push_back(eIt->first);
+				}
+				else
+				{
+					// cout<<"loop "<<eIt->first.first<<" "<<eIt->first.second<<" from bad cluster "<<
+					// 	clusterizer.getClusterID(eIt->first)<<endl;
+				}
 			}
 			else
 			{
@@ -2070,14 +2318,16 @@ public:
 		{
 			badNum = badLoops.size() - 1;
 			deletedNum = 0;
-			int testTime;
+			int testTime, test_time_const;
+
+			test_time_const = int(3);
+			if(test_time_const > int(goodLoops.size()) -1){
+				test_time_const = int(goodLoops.size()) -1;
+			}			
 			for( ; badNum>=0; badNum--)
 			{
-				testTime = 9;
 				disVector.clear();
-				if(testTime > int(goodLoops.size()) -1){
-					testTime = int(goodLoops.size()) -1;
-				}
+				testTime = test_time_const;
 				// testTime = testTime-1;
 				// cout<<"goodLoops.size() "<<goodLoops.size()<<endl;
 				// cout<<"goodLoops.size() -1:  "<<goodLoops.size()-1<<endl;
@@ -2085,11 +2335,10 @@ public:
 
 				cout<<" "<<endl;
 				// cout<<"goodLoops size "<<goodLoops.size()<<" "<<" badLoops size "<<badLoops.size()<<endl;
-				cout<<"bad loop "<<badNum<<"   "<<badLoops[badNum].first<<" "<<badLoops[badNum].second<<
-					" has error "<<chi2LinkErrors[badLoops[badNum]]<<endl;
+				cout<<"cluster "<<bad_cluster_ID <<" bad loop: "<<badNum<<"   "<<badLoops[badNum].first<<" "<<badLoops[badNum].second<<
+					"  error: "<<chi2LinkErrors[badLoops[badNum]]<<endl;
 
 				good_loop_node_distance_pair_vector.clear();
-				
 
 				if(goodLoops.size() >= 1)
 				{
@@ -2108,6 +2357,7 @@ public:
 
 				if(testTime == -1)
 				{
+					cout<<"no good dis to complementary check as goodloop.size is "<<goodLoops.size()<<endl;
 					// no good loop so do self check
 					reV =  clusterizer.check_single_loop_odo(badLoops[badNum], clusterizer.LP_Trans_Covar_Map, futileBit1, beli);
 					if((futileBit1) != 1)
@@ -2121,7 +2371,6 @@ public:
 						{
 							cout<<"the dis is "<<reV.second<<endl;
 							disVector.push_back(reV.second);
-					
 						}					
 					}
 					else{
@@ -2134,23 +2383,22 @@ public:
 					bool done_single_check = 0;
 					int cluster_id_to_deleted;
 					for(; testTime >=0; testTime--){
-						// cout<<"testTime "<<testTime<<endl;
+						cout<<"testTime "<<testTime<<endl;
 						//if the error is too big, delete it directly
 						if(chi2LinkErrors[badLoops[badNum]] > upperLimitChi){
-							cout<<"delete loop "<<badLoops[badNum].first<<" "<<badLoops[badNum].second<<endl;
+							cout<<"delete big error loop "<<badLoops[badNum].first<<" "<<badLoops[badNum].second<<endl;
 
 							if(clusterizer.getClusterByID(clusterizer.getClusterID(badLoops[badNum])).size() == 1)
 							{
 								clusters_set.erase(clusterizer.getClusterID(badLoops[badNum]));
 							}
-							else
-							{
-								clusterizer.setClusterID(badLoops[badNum],ID_IGNORE); 
-								currentCluster.erase(badLoops[badNum]);
-								deletedNum = deletedNum + 1;	
-								have_deleted = 1;
-								break;
-							}							
+				
+							clusterizer.setClusterID(badLoops[badNum],ID_IGNORE); 
+							currentCluster.erase(badLoops[badNum]);
+							deletedNum = deletedNum + 1;	
+							have_deleted = 1;								
+								
+							break;						
 
 						}
 						// if(bad_cluster_ID == clusterizer.getClusterID(goodLoops[testTime])
@@ -2183,6 +2431,10 @@ public:
 									if(clusterizer.getClusterByID(clusterizer.getClusterID(badLoops[badNum])).size() == 1)
 									{
 										clusters_set.erase(clusterizer.getClusterID(badLoops[badNum]));
+										currentCluster.erase(badLoops[badNum]);	
+										deletedNum = deletedNum + 1;	
+										have_deleted =1;
+										break;										
 									}
 									else
 									{
@@ -2201,6 +2453,7 @@ public:
 							}
 							else{
 								cout<<"futile dis is "<<reV.second<<endl;
+								disVector.push_back(reV.second);
 							}
 						}
 						else
@@ -2230,6 +2483,7 @@ public:
 								}
 								else{
 									cout<<"futile dis is "<<reV.second<<endl;
+									disVector.push_back(reV.second);
 								}
 							}
 						}
@@ -2241,12 +2495,16 @@ public:
 				{
 					average = accumulate( disVector.begin(), disVector.end(), 0.0)/disVector.size();  
 					cout<<"averange dis is "<<average<<" threshold is "<<utils::chi2_continuous(3, beli)<<endl;
-					if(average > utils::chi2_continuous(3, beli))
+					cout<<"nearest loop dis is "<<disVector.back()<<endl;
+					if(average > utils::chi2_continuous(3, beli) or disVector.back() > utils::chi2_continuous(3, 0.99))
 					{
-						cout<<"delete loop "<<badLoops[badNum].first<<" "<<badLoops[badNum].second<<endl;
+						cout<<"delete loop "<<badLoops[badNum].first<<" "<<badLoops[badNum].second<<" from cluster "<<
+							clusterizer.getClusterID(badLoops[badNum])<<endl;
 						if(clusterizer.getClusterByID(clusterizer.getClusterID(badLoops[badNum])).size() == 1)
 						{
 							clusters_set.erase(clusterizer.getClusterID(badLoops[badNum]));
+							currentCluster.erase(badLoops[badNum]);
+							deletedNum = deletedNum + 1;	
 						}
 						else
 						{
@@ -2264,7 +2522,8 @@ public:
 						}
 			
 					}  	
-				}		
+				}	
+				cout<<"deletedNum is "<<deletedNum<<endl;	
 			}
 
 			if(deletedNum == 0 )
@@ -2291,8 +2550,11 @@ public:
 
 				chi2LinkErrors.clear();
 				// chi2LinkErrors = gWrapper->optimize(currentCluster, small_numIterations, odoEdgeRelateLC_Error, odoEdgeError);
-				chi2LinkErrors = gWrapper->optimize_active_robustKernel(currentCluster, small_numIterations, 
-										  startRange, endRange, odoEdgeError);
+				chi2LinkErrors = 
+								// gWrapper->optimize_active_robustKernel(currentCluster, small_numIterations, 
+								// 		  startRange, endRange, odoEdgeError);
+								gWrapper->optimize_active_robustKernel_multi(currentCluster, small_numIterations, 
+										  startRange, endRange, odoEdgeError);	
 
 				activeEdgeCount = chi2LinkErrors[IntPair(-1,-1)];
 				if(chi2LinkErrors[IntPair(-1,0)] < utils::chi2_continuous(edgeDimension* activeEdgeCount, 0.95) and
@@ -2301,9 +2563,12 @@ public:
 					// cout<<"cluster size > 1, and some menbers are deleted"<<endl;
 					// std::cin.get();
 					// if()
+					cout<<"return __ 1 "<<endl;
 					return 1;
 				}	
 				else{
+					cout<<"all graph error: "<<chi2LinkErrors[IntPair(-1,0)]<<endl<<"cluster error: "<<chi2LinkErrors[IntPair(-2,0)]<<endl; 
+					cout<<"return __ 0 "<<endl;
 					return 0;
 				}		
 			}
@@ -2336,8 +2601,11 @@ public:
 
 			chi2LinkErrors.clear();
 			// chi2LinkErrors = gWrapper->optimize(currentCluster, small_numIterations, odoEdgeRelateLC_Error, odoEdgeError);
-			chi2LinkErrors = gWrapper->optimize_active_robustKernel(currentCluster, small_numIterations, 
-									  startRange, endRange, odoEdgeError);
+			chi2LinkErrors = 
+							// gWrapper->optimize_active_robustKernel(currentCluster, small_numIterations, 
+							// 		  startRange, endRange, odoEdgeError);
+							gWrapper->optimize_active_robustKernel_multi(currentCluster, small_numIterations, 
+										  startRange, endRange, odoEdgeError);	
 
 			activeChi2Graph = chi2LinkErrors[IntPair(-1,0)];
 			activeEdgeCount = chi2LinkErrors[IntPair(-1,-1)];
@@ -2378,6 +2646,7 @@ public:
 					return 0;
 				}
 				// std::cin.get();
+				cout<<"bad loops num is 0, return multi 1"<<endl;
 				return 1;
 			}
 			if(goodLoops.size() == 0)
@@ -3925,15 +4194,23 @@ public:
     void showClusterIDandNum(std::set<int> & consistentClusters)
     {
         //print the clusters that suvived
-        cout<<"suvived clusters after intra check:"<<endl;
-        // for(std::set<int>::iterator  conflict_check_iter = consistentClusters.begin(); conflict_check_iter != consistentClusters.end(); conflict_check_iter++)
-        for(std::set<int>::iterator  conflict_check_iter = consistentClusters.begin(); conflict_check_iter != consistentClusters.end(); conflict_check_iter++)
+        cout<<"suvived clusters:"<<endl;
+        if(consistentClusters.size() == 0)
         {
-            //get the cluster serial survived
-            //use  all_conflict_cluster to check
-            cout<<(*conflict_check_iter)<<"("<<clusterizer.getClusterByID(*conflict_check_iter).size()<<") "<<endl;
+        	cout<<"no cluster suvived"<<endl;
         }
-        cout<<endl;
+        else
+        {
+	        // for(std::set<int>::iterator  conflict_check_iter = consistentClusters.begin(); conflict_check_iter != consistentClusters.end(); conflict_check_iter++)
+	        for(std::set<int>::iterator  conflict_check_iter = consistentClusters.begin(); conflict_check_iter != consistentClusters.end(); conflict_check_iter++)
+	        {
+	            //get the cluster serial survived
+	            //use  all_conflict_cluster to check
+	            cout<<(*conflict_check_iter)<<"("<<clusterizer.getClusterByID(*conflict_check_iter).size()<<") "<<endl;
+	        }
+	        cout<<endl;
+        }
+
     }
 
 	bool robustify_simplify(bool eraseIncorrectLinks=false)
@@ -3976,9 +4253,8 @@ public:
 		std::cout<<"Checking Intra cluster consistency : "<<std::endl;
 		//save all loops information once the cluster survive
 		ofstream fileStreamr; 
-		fileStreamr.open("loops_info_of_all_suvived_clusters_after_intracheck.txt",ios::trunc);
 		std::pair<g2o::SE2, Matrix3d> tSave;
-		std::pair<int,int> ty;
+		// std::pair<int,int> ty;
 		int  originalLoopNum;
 		bool passIntrachenck_second, passIntrachenck_active = 1;
 		std::vector<std::pair<double, std::pair<int, int> > >  chiStstis4eachLoop;
@@ -4051,6 +4327,7 @@ public:
 			deleted_loops.clear();
 			doubtLoopNumberVector.clear();
 			clusterToTest = clusterizer.clusterSizeVector[i].first;
+			cout<<"cluster "<<clusterToTest<<endl;
 		
 			//this one find good set, and have stritc for one menber cluster and strict belief for single loop, previous &95, now is %70;	
 			// passIntrachenck_second = intraClusterConsistent_goodSET_handleOneMenCluster(i, chiStatisVector, doubtLoopNumberVector, originalLoopNum, chiStstis4eachLoop);
@@ -4069,15 +4346,18 @@ public:
 		// // }
 
 
-		// 	if(potentialGoodCluster.find(clusterToTest) == potentialGoodCluster.end())
-		// 	{
-		// 		cout<<"can not find cluster "<< clusterToTest <<" in potentialGoodCluster, so continue"<<endl;
-		// 		continue;
-		// 	}
+			if(potentialGoodCluster.find(clusterToTest) == potentialGoodCluster.end())
+			{
+				// cout<<"can not find cluster "<< clusterToTest <<" in potentialGoodCluster, so continue"<<endl;
+				continue;
+			}
 
 			// the complementary_intra() use robust kernel to optimize, and delete the loops whose non-robust error is larger than %95
+			// cout<<"begin to run complementary_intra"<<endl;
 			passIntrachenck_second = complementary_intra(clusterToTest, chiStatisVector, 
 				doubtLoopNumberVector, originalLoopNum, chiStstis4eachLoop, deleted_loops);
+			// cout<<"if you want to check the next cluster, press any key to continue"<<endl;
+			// cin.get();
 
 			// the third version use robust kernel to opeimize, then select the loops whose non-robust error is alrge than %95
 			// as double one, then check their tranform distance.
@@ -4102,8 +4382,8 @@ public:
 					// test each one member clsuter
 					for(int findOne = 0; findOne < clusterSize; findOne++)
 					{
-						if(clusterizer.clusterSizeVector[findOne].second >= 2)
-							continue;
+						// if(clusterizer.clusterSizeVector[findOne].second >= 2)
+						// 	continue;
 						Pair.second = clusterizer.clusterSizeVector[findOne].first;
 						Pair_reverse.first = clusterizer.clusterSizeVector[findOne].first;
 						// delete those one member clsuter that is conflict with this good clsuter
@@ -4115,26 +4395,27 @@ public:
 							// for(; 
 							// 	sta_l != end_l;
 							// 	std_l++)
-							bool wrong_conflict = 0;
 
-							for(int check_wrong_conflict = 0; 
-									check_wrong_conflict < int(deleted_loops.size()); 
-									check_wrong_conflict++)
+							// bool wrong_conflict = 0;
+
+							// for(int check_wrong_conflict = 0; 
+							// 		check_wrong_conflict < int(deleted_loops.size()); 
+							// 		check_wrong_conflict++)
+							// {
+							// 	// if(clusterizer.conflit_clsuter_pair_map_cause_loops.find(Pair) == 
+							// 	// 	clusterizer.conflit_clsuter_pair_map_cause_loops.end())
+							// 	// {
+							// 	// 	cout<<"shold find this key but not"<<endl;
+							// 	// 	exit(0);
+							// 	// }
+							// 	// cout<<"erase wrong cause loop "<<deleted_loops[check_wrong_conflict].first<<" "<<
+							// 	// 	deleted_loops[check_wrong_conflict].second<<endl;
+							// 	clusterizer.conflit_clsuter_pair_map_cause_loops[Pair].erase(deleted_loops[check_wrong_conflict]);
+							// 	clusterizer.conflit_clsuter_pair_map_cause_loops[Pair_reverse].erase(deleted_loops[check_wrong_conflict]);
+							// }
+							// if(clusterizer.conflit_clsuter_pair_map_cause_loops[Pair].size() != 0)
 							{
-								// if(clusterizer.conflit_clsuter_pair_map_cause_loops.find(Pair) == 
-								// 	clusterizer.conflit_clsuter_pair_map_cause_loops.end())
-								// {
-								// 	cout<<"shold find this key but not"<<endl;
-								// 	exit(0);
-								// }
-								// cout<<"erase wrong cause loop "<<deleted_loops[check_wrong_conflict].first<<" "<<
-								// 	deleted_loops[check_wrong_conflict].second<<endl;
-								clusterizer.conflit_clsuter_pair_map_cause_loops[Pair].erase(deleted_loops[check_wrong_conflict]);
-								clusterizer.conflit_clsuter_pair_map_cause_loops[Pair_reverse].erase(deleted_loops[check_wrong_conflict]);
-							}
-							if(clusterizer.conflit_clsuter_pair_map_cause_loops[Pair].size() != 0)
-							{
-								cout<<"one_member cluster "<<Pair.second<<
+								cout<<"cluster "<<Pair.second<<
 									" is deleted as it is conflict with cluster "<<Pair.first<<endl;
 								potentialGoodCluster.erase(Pair.second);
 							}
@@ -4149,13 +4430,48 @@ public:
 			}
 		}
 
-
-
-
-
 		std::cout<<"consistentClusters size: "<<consistentClusters.size()<<std::endl;
 		// sleep(2);
+		// save the clusters after intra
+		fileStreamr.open("clusters_after_intra.txt",ios::trunc);
+		std::array<double,6> ty={1,1,1,1,1,1};
+		std::pair<int, int> ty_pair;
+		for(int save_cluster = 0; save_cluster < clusterizer.clusterSizeVector.size(); save_cluster++)
+		{
+			int cluster_id = clusterizer.clusterSizeVector[save_cluster].first;
+			if(find_ele.find(consistentClusters, cluster_id) < 0)
+				continue;
+			if(clusterizer.mixed_clusters.find(cluster_id) != clusterizer.mixed_clusters.end())
+				fileStreamr<<"clusterID "<<cluster_id<<" "<<cluster_id+1<<" mixed"<<"\n";
+			else
+				fileStreamr<<"clusterID "<<cluster_id<<" "<<cluster_id+1<<"\n";
 
+			IntPairSet& currentCluster = clusterizer.getClusterByID(cluster_id);
+			IntPairSet::const_iterator itVertex = currentCluster.begin(), 
+				lendVertex = currentCluster.end();
+			for(;itVertex!=lendVertex;itVertex++)
+			{
+				ty_pair = *itVertex;
+
+				tSave = clusterizer.LP_Trans_Covar_Map[ty_pair];
+
+				bool bad  = 0;
+
+				for(int i = 0; i <clusterizer.bad_loops_vector.size(); i++)
+				{
+					if(clusterizer.bad_loops_vector[i].first == ty[0] and clusterizer.bad_loops_vector[i].second == ty[3])
+					{
+						bad = 1;
+						break;
+					}
+				}
+
+				fileStreamr<<"EDGE_SE2 "<<ty_pair.first<<" "<<ty_pair.second<<" "<<tSave.first[0]<<" "<<tSave.first[1]<<" "<<tSave.first[2]
+					<<" "<<1.0/tSave.second(0,0)<<" "<<0<<" "<<0<<" "<<1.0/tSave.second(1,1)<<" "<<0<<" "<<1.0/tSave.second(2,2)<<" "<<bad<<"\n";
+				// fileStream<<trystdarray[0]<<"\n";
+			}	
+		}
+		fileStreamr.close();		
 
 		gettimeofday(&t2, NULL);
 		//那么函数f运行所花的时间为
@@ -4199,273 +4515,156 @@ public:
 
 		// cout<<" "<<endl;
 		// cout<<"start to check if cluseter pair in good set has confict"<<endl;
-		std::set<int>::iterator
-			cItSet	= suvivedTointerSet.begin(),
-			cEndSet = suvivedTointerSet.end();
-	
 
+		cout<<"after intra"<<endl;
         showClusterIDandNum(suvivedTointerSet);
-
-
+		if(suvivedTointerSet.size() > 1)
+		{
+			bool conf =0;
+			std::vector<int > temporary_vector_int(suvivedTointerSet.begin(), suvivedTointerSet.end());
+			std::pair<int, int> pair;
+			for(int i = 0; i < temporary_vector_int.size()-1; i++)
+			{
+				for(int j = i+1; j < temporary_vector_int.size(); j++)
+				{
+					pair.first = temporary_vector_int[i];
+					pair.second = temporary_vector_int[j];
+					if(clusterizer.conflictPairSet.find(pair) != clusterizer.conflictPairSet.end())
+					{
+						cout<<"conflict clusters pair: "<<pair.first<<" "<<pair.second<<endl;
+						conf = 1;
+					}
+				}
+				
+			}
+			if (conf == 0)
+			{
+				cout<<"no conflict pair "<<endl;
+			}
+		}
+		// cout<<"intra is just finished"<<endl;
+		// cin.get();
 		// // std::set<int> suvivedTointerSet_backup_sec(suvivedToInter.begin(), suvivedToInter.end());
 
 		gettimeofday(&t1, NULL);
 		std::map<int,double>  errorEachCluster;
 		IntPairSet  activeLinks;
-
-
-		// double beliefResidualError = 0.9999999999999,  beliefTransError = 0.95, beliefGoodLoop = 0.95;
-		// // cout<<"utils::chi2(3, )"<<utils::chi2(3, beliefResidualError)<<endl;
-		// // cin.get();
-		// IntPairDoubleMap linkErrors;
-		// bool   deleteSome = 1;
-		// // handleBigErrorInInter(suvivedTointerSet, goodSet, rejectSet, beliefResidualError, beliefTransError, 
-		// // 	beliefGoodLoop, linkErrors,  deleteSome, activeLinks);
-  // //       showClusterIDandNum(suvivedTointerSet);			
-		// 	while(deleteSome == 1)
-		// 	{
-		// 		handleBigErrorInInter(suvivedTointerSet, goodSet, rejectSet, beliefResidualError, 
-		// 			beliefTransError, beliefGoodLoop, linkErrors,  deleteSome, activeLinks);
-		// 		showClusterIDandNum(suvivedTointerSet);
-		// 		if(suvivedTointerSet.size() == 0)
-		// 		{
-		// 			cout<<"no one cluster suvived "<<endl;
-		// 			break;
-		// 		}
-		// 	}
-		// beliefResidualError = 0.999;
-		// deleteSome = 1;
-		// // handleBigErrorInInter(suvivedTointerSet, goodSet, rejectSet, beliefResidualError, beliefTransError, 
-		// // 	beliefGoodLoop, linkErrors,  deleteSome, activeLinks);
-  // //       showClusterIDandNum(suvivedTointerSet);			
-		// 	while(deleteSome == 1)
-		// 	{
-		// 		handleBigErrorInInter(suvivedTointerSet, goodSet, rejectSet, beliefResidualError, 
-		// 			beliefTransError, beliefGoodLoop, linkErrors,  deleteSome, activeLinks);
-		// 		showClusterIDandNum(suvivedTointerSet);
-		// 		if(suvivedTointerSet.size() == 0)
-		// 		{
-		// 			cout<<"no one cluster suvived "<<endl;
-		// 			break;
-		// 		}
-		// 	}
-		// beliefResidualError = 0.95;
-		// beliefGoodLoop = 0.95;
-		// deleteSome = 1;
-		// // handleBigErrorInInter(suvivedTointerSet, goodSet, rejectSet, beliefResidualError, beliefTransError, 
-		// // 	beliefGoodLoop, linkErrors,  deleteSome, activeLinks);
-  // //       showClusterIDandNum(suvivedTointerSet);			
-		// 	while(deleteSome == 1)
-		// 	{
-		// 		handleBigErrorInInter(suvivedTointerSet, goodSet, rejectSet, beliefResidualError, 
-		// 			beliefTransError, beliefGoodLoop, linkErrors,  deleteSome, activeLinks);
-		// 		showClusterIDandNum(suvivedTointerSet);
-		// 		if(suvivedTointerSet.size() == 0)
-		// 		{
-		// 			cout<<"no one cluster suvived "<<endl;
-		// 			break;
-		// 		}
-		// 	}
-
-
-
-
-		// beliefResidualError = 0.5,  beliefTransError = 0.95, beliefGoodLoop = 0.5;
-		// handleBigErrorInInter(suvivedTointerSet, goodSet, rejectSet, beliefResidualError, beliefTransError, beliefGoodLoop, linkErrors,  deleteSome, activeLinks);
-  //       showClusterIDandNum(suvivedTointerSet);
-		// if(deleteSome == 1)
-		// {
-			
-		// 	while(deleteSome == 1)
-		// 	{
-		// 		handleBigErrorInInter(suvivedTointerSet, goodSet, rejectSet, beliefResidualError, 
-		// 			beliefTransError, beliefGoodLoop, linkErrors,  deleteSome, activeLinks);
-		// 		showClusterIDandNum(suvivedTointerSet);
-		// 	}
-
-		// }  
-
-
 	
-		// activeLinks.clear();
-		// gatherLinks(suvivedTointerSet,activeLinks);
-		// bool final_suvived = complementary_intra_multi_third(activeLinks, chiStatisVector, 
-		// 				doubtLoopNumberVector, originalLoopNum, chiStstis4eachLoop, suvivedTointerSet);
-					
-		// if(final_suvived = 0)
-		// {
-		// 	suvivedTointerSet.clear();
-		// }
 
+		if(suvivedTointerSet.size() == 0)
+		{
+			cout<<"no loop suvived"<<endl;
+			fileStreamr.open("clusters_after_intra_multi.txt",ios::trunc);
+			fileStreamr.close();
+			if(clusterizer.NumOfRealLoops != -1)
+			{		
+				IntPairSet::iterator iit = clusterizer.set4GTL.begin(), iiend = clusterizer.set4GTL.end();
+			
+				for(; iit != iiend; iit++)
+				{
 
+					lostGood = lostGood+1;
+					cout<<"true loop "<<(*iit).first <<" "<<(*iit).second<< " in cluster "<< clusterizer.getClusterID(*iit)<< " is abandened"<<endl;
 
+				}
+			}
+			return 1;
+		}
 		activeLinks.clear();
 		gatherLinks(suvivedTointerSet,activeLinks);
 		bool final_suvived = complementary_intra_multi(activeLinks, chiStatisVector, 
-						doubtLoopNumberVector, originalLoopNum, chiStstis4eachLoop, suvivedTointerSet);					
+						doubtLoopNumberVector, originalLoopNum, chiStstis4eachLoop, suvivedTointerSet);	
+
+		// save clsuters after complementary multi
+		std::set<int>::iterator
+			cItSet	= suvivedTointerSet.begin(),
+			cEndSet = suvivedTointerSet.end();
+	
+		fileStreamr.open("clusters_after_intra_multi.txt",ios::trunc);
+		for(int save_cluster = 0; save_cluster < clusterizer.clusterSizeVector.size(); save_cluster++)
+		{
+
+			int cluster_id = clusterizer.clusterSizeVector[save_cluster].first;
+			if(suvivedTointerSet.find(cluster_id) == suvivedTointerSet.end())
+				continue;
+			if(clusterizer.mixed_clusters.find(cluster_id) != clusterizer.mixed_clusters.end())
+				fileStreamr<<"clusterID "<<cluster_id<<" "<<cluster_id+1<<" mixed"<<"\n";
+			else
+				fileStreamr<<"clusterID "<<cluster_id<<" "<<cluster_id+1<<"\n";
+			IntPairSet& currentCluster = clusterizer.getClusterByID(cluster_id);
+			IntPairSet::const_iterator itVertex = currentCluster.begin(), 
+				lendVertex = currentCluster.end();
+			for(;itVertex!=lendVertex;itVertex++)
+			{
+				tSave = clusterizer.LP_Trans_Covar_Map[*itVertex];
+
+				bool bad  = 0;
+
+				for(int i = 0; i <clusterizer.bad_loops_vector.size(); i++)
+				{
+					if(clusterizer.bad_loops_vector[i].first == (*itVertex).first and 
+						clusterizer.bad_loops_vector[i].second == (*itVertex).second)
+					{
+						bad = 1;
+						break;
+					}
+				}
+
+				fileStreamr<<"EDGE_SE2 "<<(*itVertex).first<<" "<<(*itVertex).second<<" "<<tSave.first[0]<<" "<<tSave.first[1]<<" "<<tSave.first[2]
+					<<" "<<1.0/tSave.second(0,0)<<" "<<0<<" "<<0<<" "<<1.0/tSave.second(1,1)<<" "<<0<<" "<<1.0/tSave.second(2,2)<<" "<<bad<<"\n";
+				// fileStream<<trystdarray[0]<<"\n";
+			}	
+		}
+		fileStreamr.close();	
+
+		cout<<"after multi "<<endl;
+		showClusterIDandNum(suvivedTointerSet);				
 		if(final_suvived = 0)
 		{
 			suvivedTointerSet.clear();
 		}
 
-
-
-
-		// activeLinks.clear();
-		// gatherLinks(suvivedTointerSet,activeLinks);
-		// final_suvived = complementary_intra_multi_non_robust(activeLinks, chiStatisVector, 
-		// 				doubtLoopNumberVector, originalLoopNum, chiStstis4eachLoop, suvivedTointerSet);
-					
-		// if(final_suvived = 0)
-		// {
-		// 	suvivedTointerSet.clear();
-		// }		
-
-// 		if(deleteSome == 1)
-// 		{
-// 			beliefResidualError = 0.999,  beliefTransError = 0.999;
-// 			handleBigErrorInInter(suvivedTointerSet, goodSet, rejectSet, beliefResidualError, beliefTransError, beliefGoodLoop, linkErrors,  deleteSome, activeLinks);
-//             showClusterIDandNum(suvivedTointerSet);
-// 		}
-// 		if(deleteSome == 1)
-// 		{
-// 			beliefResidualError = 0.99,  beliefTransError = 0.99;
-// 			handleBigErrorInInter(suvivedTointerSet, goodSet, rejectSet, beliefResidualError, beliefTransError, beliefGoodLoop, linkErrors,  deleteSome, activeLinks);
-//             showClusterIDandNum(suvivedTointerSet);
-// 		}
-// 		if(deleteSome == 1)
-// 		{
-// 			beliefResidualError = 0.95,  beliefTransError = 0.95;
-// 			handleBigErrorInInter(suvivedTointerSet, goodSet, rejectSet, beliefResidualError, beliefTransError, beliefGoodLoop, linkErrors,  deleteSome, activeLinks);
-//             showClusterIDandNum(suvivedTointerSet);
-// 		}
-// //        if(deleteSome == 1)
-//         {
-//             beliefResidualError = 0.80,  beliefTransError = 0.95, beliefGoodLoop = 0.80;
-//             handleBigErrorInInter(suvivedTointerSet, goodSet, rejectSet, beliefResidualError, beliefTransError, beliefGoodLoop, linkErrors,  deleteSome, activeLinks);
-//             showClusterIDandNum(suvivedTointerSet);
-//         }
-
-//         {
-//             beliefResidualError = 0.60,  beliefTransError = 0.95, beliefGoodLoop = 0.60;
-//             handleBigErrorInInter(suvivedTointerSet, goodSet, rejectSet, beliefResidualError, beliefTransError, beliefGoodLoop, linkErrors,  deleteSome, activeLinks);
-//             showClusterIDandNum(suvivedTointerSet);
-//         }
-
-//         {
-//             beliefResidualError = 0.30,  beliefTransError = 0.95, beliefGoodLoop = 0.30;
-//             handleBigErrorInInter(suvivedTointerSet, goodSet, rejectSet, beliefResidualError, beliefTransError, beliefGoodLoop, linkErrors,  deleteSome, activeLinks);
-//             showClusterIDandNum(suvivedTointerSet);
-//         }
-
-//         {
-//             beliefResidualError = 0.30,  beliefTransError = 0.95, beliefGoodLoop = 0.30;
-//             handleBigErrorInInter(suvivedTointerSet, goodSet, rejectSet, beliefResidualError, beliefTransError, beliefGoodLoop, linkErrors,  deleteSome, activeLinks);
-//             showClusterIDandNum(suvivedTointerSet);
-//         }
-		// interClusterConsistent_handleBigError( suvivedTointerSet, goodSet, rejectSet);
+	
+		std::cout<<" GoodSet before inter:";
+		showClusterIDandNum(suvivedTointerSet);		
 
 		interClusterConsistent( suvivedTointerSet, goodSet, rejectSet);
 		// goodSet.insert(suvivedTointerSet.begin(),suvivedTointerSet.end());
-
-
-		// bool done = false;
-		// while(!done)
-		// {
-		// 	done = true;
-		// 	cout<<"first loop"<<endl;
-
-		// 	IntSet::iterator
-		// 		cIt1 	= goodSet.begin(),
-		// 		cEnd1 	= goodSet.end();
-		// 	for( ; cIt1!=cEnd1; cIt1++)
-		// 	{
-		// 		cout<<"good set has cluster " <<*cIt1<<endl;
-		// 	}
-
-
-		// 	// cout<<"hyposis size 1 : "<<hypotheses.size()<<endl;
-		// 	IntSet::iterator
-		// 		cIt 	= suvivedTointerSet.begin(),
-		// 		cEnd 	= suvivedTointerSet.end();
-
-		// 	for( ; cIt!=cEnd; cIt++)
-		// 	{
-		// 		if(goodSet.find(*cIt)==goodSet.end() and rejectSet.find(*cIt)==rejectSet.end()) // We can't ignore this because it is nether in goodSet nor in rejectSet at the moment
-		// 		{
-		// 			hypotheses.insert(*cIt);
-		// 			// cout<<"add cluster " <<*cIt<<" to hyposis 1"<<endl;
-		// 		}
-		// 	}
-		// 	cout<<"hyposis size 2 : "<<hypotheses.size()<<endl;
-		// 	IntPairSet activeLoops;
-		// 	int startRange, endRange;
-		// 	std::set<int> clusterNodeSet;	
-			
-		// 	if(hypotheses.size() != 0)
-		// 	{
-		// 		gatherLinks(hypotheses,activeLoops);
-		// 		IntPairSet::iterator findRange = activeLoops.begin(), findRangeEnd = activeLoops.end();
-		// 		for(; findRange != findRangeEnd; findRange++)
-		// 		{
-		// 			clusterNodeSet.insert((*findRange).first);
-		// 			clusterNodeSet.insert((*findRange).second);
-		// 		}
-		// 		startRange = *clusterNodeSet.begin();
-		// 		endRange   = *clusterNodeSet.rbegin();
-
-		// 		IntPairDoubleMap
-		// 			linkErrors =gWrapper->optimize(activeLoops,overOptimizeIteration, odoEdgeRelateLC_Error, odoEdgeError);
-		// 		// linkErrors =gWrapper->optimize_active_robustKernel(activeLoops,overOptimizeIteration, 
-		// 		// 	startRange, endRange, odoEdgeError);
-
-
-		// 		hypotheses.clear();
-		// 		for ( IntPairDoubleMap::iterator it = linkErrors.begin(), end = linkErrors.end();
-		// 				it!=end;
-		// 				it++)
-		// 		{
-		// 			if(it->first.first < 0) continue;
-		// 			cout<<"loop "<<it->first.first<<" "<<it->first.second<<" has error "<<it->second<<endl;
-		// 			if( it->second < utils::chi2(edgeDimension))
-		// 			{
-		// 				hypotheses.insert(clusterizer.getClusterID(it->first));
-		// 				// cout<<"add cluster " <<clusterizer.getClusterID(it->first)<<" to hyposis 2"<<endl;
-		// 				done = false;
-		// 				// cout<<"add to hyposis second"<<endl;
-		// 			}
-		// 		}
-		// 	}
-
-		// 	size_t goodSetSize = goodSet.size();
-		// 	// cout<<"good set size before inter: "<<goodSetSize<<endl;
-		// 	interClusterConsistent(hypotheses,goodSet,tempRejectSet);
-		// 	// cout<<"good set size after inter: "<<goodSet.size()<<endl;
-		// 	hypotheses.clear();
-
-		// 	if(goodSet.size() > goodSetSize)
-		// 	{
-		// 		rejectSet.clear();
-		// 	}
-		// 	rejectSet.insert(tempRejectSet.begin(),tempRejectSet.end());
-		// 	tempRejectSet.clear();
-
-		// }
-
-	
-		std::cout<<" GoodSet :";
-		for( IntSet::iterator it= goodSet.begin(), end = goodSet.end(); it!=end; it++)
+		
+		if(goodSet.size() > 1)
 		{
-			std::cout<<(*it)<<" ";
+			bool conf =0;
+			std::vector<int > temporary_vector_int(goodSet.begin(), goodSet.end());
+			std::pair<int, int> pair;
+			for(int i = 0; i < temporary_vector_int.size()-1; i++)
+			{
+				for(int j = i+1; j < temporary_vector_int.size(); j++)
+				{
+					pair.first = temporary_vector_int[i];
+					pair.second = temporary_vector_int[j];
+					if(clusterizer.conflictPairSet.find(pair) != clusterizer.conflictPairSet.end())
+					{
+						cout<<"conflict clusters pair: "<<pair.first<<" "<<pair.second<<endl;
+						conf = 1;
+					}
+				}
+				
+			}
+			if (conf == 0)
+			{
+				cout<<"no conflict pair "<<endl;
+			}
 		}
-		std::cout<<std::endl;		
+
+
+		
 		// int lastDcLUSTER = -1;
 		// double meanErrorChi = 0;
 		// interClusterConsistent_retrace( suvivedTointerSet, goodSet, rejectSet, lastDcLUSTER, meanErrorChi);
 
 		gettimeofday(&t2, NULL);
 
-		std::cout<<" GoodSet :";
+		std::cout<<" GoodSet final:";
 		for( IntSet::iterator it= goodSet.begin(), end = goodSet.end(); it!=end; it++)
 		{
 			std::cout<<(*it)<<" ";
@@ -4630,207 +4829,207 @@ public:
 		}
 
 
-		if(allfalseAccepted != 0 or lostGood != 0)
-		{
-			cout<<"allfalseAccepted = "<<allfalseAccepted<<"   "<<"lostGood = "<<lostGood<<endl;
-			cin.get();
-		}
+		// if(allfalseAccepted != 0 or lostGood != 0)
+		// {
+		// 	cout<<"allfalseAccepted = "<<allfalseAccepted<<"   "<<"lostGood = "<<lostGood<<endl;
+		// 	cin.get();
+		// }
 
 		return 1;
 
 
-		//recheck the doubt loops
-		std::vector<int> trueBitOfReacceptDoubtLoop;
-		if (doubtLoopVector.size() > 0)
-		{
-			if(clusterIDofDoubtLoops.size() != doubtLoopVector.size())
-			{
-					printf("This error is in %s on line %d\n",  __FILE__, __LINE__);
-					exit(0);
-			}
+		// //recheck the doubt loops
+		// std::vector<int> trueBitOfReacceptDoubtLoop;
+		// if (doubtLoopVector.size() > 0)
+		// {
+		// 	if(clusterIDofDoubtLoops.size() != doubtLoopVector.size())
+		// 	{
+		// 			printf("This error is in %s on line %d\n",  __FILE__, __LINE__);
+		// 			exit(0);
+		// 	}
 			
-			for(int doubt = 0; doubt < doubtLoopVector.size(); doubt++)
-			{
-				cout<<"doubt chenck "<<doubtLoopVector[doubt].first<<" "<<doubtLoopVector[doubt].second;
-				std::vector< std::pair<double, std::pair<std::pair<int, int>, int> > > & middCheck = 
-					clusterizer._clustersFound[clusterIDofDoubtLoops[doubt]].chiStatisWhenAdd2Cluster;;
-				// middCheck = clusterizer._clustersFound[clusterIDofDoubtLoops[doubt]].chiStatisWhenAdd2Cluster;
-				bool find = 0;
-				int j=0;
-				for(j =0; j< middCheck.size(); j++)
-				{
-					if(middCheck[j].second.first == doubtLoopVector[doubt])
-					{
-						find = 1;
-						cout<<" has transdis "<<middCheck[j].first<<endl;
-						if(middCheck[j].first < chi2_continuous(edgeDimension, 0.6))
-						{
-							reAccept.push_back(doubtLoopVector[doubt]);
-							//reput the loop into the cluster
-							clusterizer.setClusterID(doubtLoopVector[doubt],clusterIDofDoubtLoops[doubt]);
-							//check the reaccept are true or not
+		// 	for(int doubt = 0; doubt < doubtLoopVector.size(); doubt++)
+		// 	{
+		// 		cout<<"doubt chenck "<<doubtLoopVector[doubt].first<<" "<<doubtLoopVector[doubt].second;
+		// 		std::vector< std::pair<double, std::pair<std::pair<int, int>, int> > > & middCheck = 
+		// 			clusterizer._clustersFound[clusterIDofDoubtLoops[doubt]].chiStatisWhenAdd2Cluster;;
+		// 		// middCheck = clusterizer._clustersFound[clusterIDofDoubtLoops[doubt]].chiStatisWhenAdd2Cluster;
+		// 		bool find = 0;
+		// 		int j=0;
+		// 		for(j =0; j< middCheck.size(); j++)
+		// 		{
+		// 			if(middCheck[j].second.first == doubtLoopVector[doubt])
+		// 			{
+		// 				find = 1;
+		// 				cout<<" has transdis "<<middCheck[j].first<<endl;
+		// 				if(middCheck[j].first < chi2_continuous(edgeDimension, 0.6))
+		// 				{
+		// 					reAccept.push_back(doubtLoopVector[doubt]);
+		// 					//reput the loop into the cluster
+		// 					clusterizer.setClusterID(doubtLoopVector[doubt],clusterIDofDoubtLoops[doubt]);
+		// 					//check the reaccept are true or not
 
-							if(clusterizer.set4GTL.find(doubtLoopVector[doubt]) == clusterizer.set4GTL.end())
-								trueBitOfReacceptDoubtLoop.push_back(0);
-							else
-								trueBitOfReacceptDoubtLoop.push_back(1);
+		// 					if(clusterizer.set4GTL.find(doubtLoopVector[doubt]) == clusterizer.set4GTL.end())
+		// 						trueBitOfReacceptDoubtLoop.push_back(0);
+		// 					else
+		// 						trueBitOfReacceptDoubtLoop.push_back(1);
 
-						}
-						else
-						{
-							cout<<" this loop "<<doubtLoopVector[doubt].first<<" "<<doubtLoopVector[doubt].second<<" has been deleted"<<endl;
-							clusterizer.setClusterID(doubtLoopVector[doubt],ID_IGNORE);
-						}
-						break;
-					}
-				}
-				if(find == 0)
-				{
-					cout<<"the loop in doubt should be find out in the previous cluster, however, falied!"<<endl;
-					printf("This error is in %s on line %d\n",  __FILE__, __LINE__);
-					exit(0);
-				}
+		// 				}
+		// 				else
+		// 				{
+		// 					cout<<" this loop "<<doubtLoopVector[doubt].first<<" "<<doubtLoopVector[doubt].second<<" has been deleted"<<endl;
+		// 					clusterizer.setClusterID(doubtLoopVector[doubt],ID_IGNORE);
+		// 				}
+		// 				break;
+		// 			}
+		// 		}
+		// 		if(find == 0)
+		// 		{
+		// 			cout<<"the loop in doubt should be find out in the previous cluster, however, falied!"<<endl;
+		// 			printf("This error is in %s on line %d\n",  __FILE__, __LINE__);
+		// 			exit(0);
+		// 		}
 
-				cout<<"doubt loop "<<doubt<<" is "<<doubtLoopVector[doubt].first<<" "<<doubtLoopVector[doubt].second<<
-					" ,  the chi statis is "<<middCheck[j].first<< " when it is added to the cluster "<<
-					clusterIDofDoubtLoops[doubt]<<endl;
-			}	
-		}
-		else
-			cout<<"no doube loop need to be checked"<<endl;
+		// 		cout<<"doubt loop "<<doubt<<" is "<<doubtLoopVector[doubt].first<<" "<<doubtLoopVector[doubt].second<<
+		// 			" ,  the chi statis is "<<middCheck[j].first<< " when it is added to the cluster "<<
+		// 			clusterIDofDoubtLoops[doubt]<<endl;
+		// 	}	
+		// }
+		// else
+		// 	cout<<"no doube loop need to be checked"<<endl;
 
-		//print out the information of reaccept loops,
-		int addTrue = 0, addFalse = 0;
-		for(int reacce = 0; reacce < reAccept.size(); reacce++)
-		{
-			cout<<"reaccept doubt loop "<<reAccept[reacce].first<<" "<<reAccept[reacce].second;
+		// //print out the information of reaccept loops,
+		// int addTrue = 0, addFalse = 0;
+		// for(int reacce = 0; reacce < reAccept.size(); reacce++)
+		// {
+		// 	cout<<"reaccept doubt loop "<<reAccept[reacce].first<<" "<<reAccept[reacce].second;
 
-			if(trueBitOfReacceptDoubtLoop[reacce])
-			{
-				addTrue =addTrue +1;
-				cout<<" is true"<<endl;
-			}
-			else
-			{
-				addFalse =addFalse +1;
-				cout<<" is false"<<endl;
-			}
-		}
+		// 	if(trueBitOfReacceptDoubtLoop[reacce])
+		// 	{
+		// 		addTrue =addTrue +1;
+		// 		cout<<" is true"<<endl;
+		// 	}
+		// 	else
+		// 	{
+		// 		addFalse =addFalse +1;
+		// 		cout<<" is false"<<endl;
+		// 	}
+		// }
 
 
-		//if there exists an ground truth date, then print out the relevent information
-		cout<<" "<<endl;
-		if((clusterizer.NumOfRealLoops != -1) and (reAccept.size()>0))
-		{
-			cout<<" ***************  after recheck doubt loops *************** "<<endl;
-			cout<<"the number of     suvived good loops    is: "<<activeLoops.size()+addTrue+addFalse<<std::endl;
-			cout<<" "<<endl;
-			cout<<"the number of         true  loops       is: "<< clusterizer.NumOfRealLoops<<" "<<endl;
-			cout<<" "<<endl;
-			cout<<"the number of      loops in testfile    is: "<< clusterizer.LP_Trans_Covar_Map.size()<<" "<<endl;
-			cout<<" "<<endl;
-			cout<<"the                  accuracy rate      is: "<<
-				(goodLN+addTrue)*1.0/(activeLoops.size()+addTrue+addFalse)<<" "<<endl;
-			cout<<" "<<endl;
-			cout<<"the                  recall  rate       is: "<< 
-				(forRecall+addTrue)*1.0/(clusterizer.set4GTL.size())<<" "<<endl;
-			cout<<" ********************************************************* "<<endl;
-			cout<<" "<<endl;
-		}
-		else
-			cout<<"no change happen after recheck the doubt loops "<<endl;
+		// //if there exists an ground truth date, then print out the relevent information
+		// cout<<" "<<endl;
+		// if((clusterizer.NumOfRealLoops != -1) and (reAccept.size()>0))
+		// {
+		// 	cout<<" ***************  after recheck doubt loops *************** "<<endl;
+		// 	cout<<"the number of     suvived good loops    is: "<<activeLoops.size()+addTrue+addFalse<<std::endl;
+		// 	cout<<" "<<endl;
+		// 	cout<<"the number of         true  loops       is: "<< clusterizer.NumOfRealLoops<<" "<<endl;
+		// 	cout<<" "<<endl;
+		// 	cout<<"the number of      loops in testfile    is: "<< clusterizer.LP_Trans_Covar_Map.size()<<" "<<endl;
+		// 	cout<<" "<<endl;
+		// 	cout<<"the                  accuracy rate      is: "<<
+		// 		(goodLN+addTrue)*1.0/(activeLoops.size()+addTrue+addFalse)<<" "<<endl;
+		// 	cout<<" "<<endl;
+		// 	cout<<"the                  recall  rate       is: "<< 
+		// 		(forRecall+addTrue)*1.0/(clusterizer.set4GTL.size())<<" "<<endl;
+		// 	cout<<" ********************************************************* "<<endl;
+		// 	cout<<" "<<endl;
+		// }
+		// else
+		// 	cout<<"no change happen after recheck the doubt loops "<<endl;
 
-		//re get the loops in activeLoops after boubt check
-		activeLoops.clear();
-		gatherLinks(hypotheses,activeLoops);
-				//save the result file before doube check 
-		// gWrapper->optimize(activeLoops,nIterations, odoEdgeRelateLC_Error, odoEdgeError);
+		// //re get the loops in activeLoops after boubt check
+		// activeLoops.clear();
+		// gatherLinks(hypotheses,activeLoops);
+		// 		//save the result file before doube check 
+		// // gWrapper->optimize(activeLoops,nIterations, odoEdgeRelateLC_Error, odoEdgeError);
 
-		if((reAccept.size()>0))
-		{
-			const char *g2fre=OptimizedResultWithRecheck.data();
-			gWrapper->saveOptimizedResult(g2fre, activeLoops);
-		}
-		//save the cluster info after doubt check
-		// ofstream fileStreamr; 
-		fileStreamr.open("loops_info_of_all_suvived_clusters_after_intracheck_after_doubtcheck.txt",ios::trunc);
+		// if((reAccept.size()>0))
+		// {
+		// 	const char *g2fre=OptimizedResultWithRecheck.data();
+		// 	gWrapper->saveOptimizedResult(g2fre, activeLoops);
+		// }
+		// //save the cluster info after doubt check
+		// // ofstream fileStreamr; 
+		// fileStreamr.open("loops_info_of_all_suvived_clusters_after_intracheck_after_doubtcheck.txt",ios::trunc);
 
-		cItSet 	= hypotheses.begin(),
-		cEndSet 	= hypotheses.end();
-		cout<<"remained clusters in hypotheses: "<<endl;
-		for(; cItSet != cEndSet; cItSet++)
-			cout<<*cItSet<<" ";
-		cout<<endl;
-		cout<<" "<<endl;
-		cout<<"clusters in consistentClusters"<<endl;
-		cIt 	= consistentClusters.begin(),
-		cEnd 	= consistentClusters.end();
-		for(; cIt != cEnd; cIt++)
-		{
-			std::cout<<*cIt<<" "; std::cout.flush();
-			std::vector<double>  chiStatisVector;
-			std::vector<std::pair<int, int> >  doubtLoopNumberVector;
+		// cItSet 	= hypotheses.begin(),
+		// cEndSet 	= hypotheses.end();
+		// cout<<"remained clusters in hypotheses: "<<endl;
+		// for(; cItSet != cEndSet; cItSet++)
+		// 	cout<<*cItSet<<" ";
+		// cout<<endl;
+		// cout<<" "<<endl;
+		// cout<<"clusters in consistentClusters"<<endl;
+		// cIt 	= consistentClusters.begin(),
+		// cEnd 	= consistentClusters.end();
+		// for(; cIt != cEnd; cIt++)
+		// {
+		// 	std::cout<<*cIt<<" "; std::cout.flush();
+		// 	std::vector<double>  chiStatisVector;
+		// 	std::vector<std::pair<int, int> >  doubtLoopNumberVector;
 
-				fileStreamr<<*cIt<<"\n";
-				//save loops information in i to a txt file
-				IntPairSet::iterator it = clusterizer.getClusterByID(*cIt).begin(), itend = clusterizer.getClusterByID(*cIt).end();
-				for(; it != itend; it++)
-				{
-					int first = (*it).first, toNode = (*it).second;
-					int j;
-					for(j = 0; j<clusterizer._clustersFound[*cIt].positionserial.size();j++)
-					{
-						if( first == clusterizer._clustersFound[*cIt].positionserial[j][0] and
-							toNode == clusterizer._clustersFound[*cIt].positionserial[j][3])
-						{
-							ty.first = clusterizer._clustersFound[*cIt].positionserial[j][0];
-							ty.second = clusterizer._clustersFound[*cIt].positionserial[j][3];
+		// 		fileStreamr<<*cIt<<"\n";
+		// 		//save loops information in i to a txt file
+		// 		IntPairSet::iterator it = clusterizer.getClusterByID(*cIt).begin(), itend = clusterizer.getClusterByID(*cIt).end();
+		// 		for(; it != itend; it++)
+		// 		{
+		// 			int first = (*it).first, toNode = (*it).second;
+		// 			int j;
+		// 			for(j = 0; j<clusterizer._clustersFound[*cIt].positionserial.size();j++)
+		// 			{
+		// 				if( first == clusterizer._clustersFound[*cIt].positionserial[j][0] and
+		// 					toNode == clusterizer._clustersFound[*cIt].positionserial[j][3])
+		// 				{
+		// 					ty.first = clusterizer._clustersFound[*cIt].positionserial[j][0];
+		// 					ty.second = clusterizer._clustersFound[*cIt].positionserial[j][3];
 
-							tSave = clusterizer.LP_Trans_Covar_Map[ty];
-							Matrix3d fsave;
-							fsave = tSave.second;
+		// 					tSave = clusterizer.LP_Trans_Covar_Map[ty];
+		// 					Matrix3d fsave;
+		// 					fsave = tSave.second;
 
-							fileStreamr<<"EDGE_SE2 "<<ty.first<<" "<<ty.second<<" "<<tSave.first[0]<<" "<<tSave.first[1]<<" "<<tSave.first[2]
-								<<" "<<fsave.inverse()(0,0)<<" "<<fsave.inverse()(0,1)<<" "<<fsave.inverse()(0,2)<<" "<<
-								fsave.inverse()(1,1)<<" "<<fsave.inverse()(1,2)<<" "<<fsave.inverse()(2,2)<<" "<<"\n";	
-							break;
-						}
-						if (j == clusterizer._clustersFound[*cIt].positionserial.size()-1)
-						{
-							cout<<"can not find the postion info from the cluster for the suvived loop "<<first<<" "<<toNode <<endl;
-							printf("This error is in %s on line %d\n",  __FILE__, __LINE__);
-							exit(0);
-						}
+		// 					fileStreamr<<"EDGE_SE2 "<<ty.first<<" "<<ty.second<<" "<<tSave.first[0]<<" "<<tSave.first[1]<<" "<<tSave.first[2]
+		// 						<<" "<<fsave.inverse()(0,0)<<" "<<fsave.inverse()(0,1)<<" "<<fsave.inverse()(0,2)<<" "<<
+		// 						fsave.inverse()(1,1)<<" "<<fsave.inverse()(1,2)<<" "<<fsave.inverse()(2,2)<<" "<<"\n";	
+		// 					break;
+		// 				}
+		// 				if (j == clusterizer._clustersFound[*cIt].positionserial.size()-1)
+		// 				{
+		// 					cout<<"can not find the postion info from the cluster for the suvived loop "<<first<<" "<<toNode <<endl;
+		// 					printf("This error is in %s on line %d\n",  __FILE__, __LINE__);
+		// 					exit(0);
+		// 				}
 	
-					}
-				}				
+		// 			}
+		// 		}				
 			
-		}
+		// }
 
-		fileStreamr.close();
-		cout<<" "<<endl;
-		if((clusterizer.NumOfRealLoops != -1) and (reAccept.size()>0))
-		{
+		// fileStreamr.close();
+		// cout<<" "<<endl;
+		// if((clusterizer.NumOfRealLoops != -1) and (reAccept.size()>0))
+		// {
 
-			cout<<" ***************  after recheck doubt loops, to see if the reaccept loops have been reput into cluster *************** "<<endl;
-			cout<<"the number of     suvived good loops    is: "<<activeLoops.size()<<std::endl;
-			cout<<" "<<endl;
-			cout<<"the number of         true  loops       is: "<< clusterizer.NumOfRealLoops<<" "<<endl;
-			cout<<" "<<endl;
-			cout<<"the number of      loops in testfile    is: "<< clusterizer.LP_Trans_Covar_Map.size()<<" "<<endl;
-			cout<<" "<<endl;
-			cout<<"the                  accuracy rate      is: "<<
-				(goodLN+addTrue)*1.0/(activeLoops.size())<<" "<<endl;
-			cout<<" "<<endl;
-			cout<<"the                  recall  rate       is: "<< 
-				(forRecall+addTrue)*1.0/(clusterizer.set4GTL.size())<<" "<<endl;
-			cout<<" ********************************************************* "<<endl;
-			cout<<" "<<endl;
-		}
-		else
-			cout<<"no change happen after recheck the doubt loops "<<endl;
-		// sleep(3);
-		return true;
+		// 	cout<<" ***************  after recheck doubt loops, to see if the reaccept loops have been reput into cluster *************** "<<endl;
+		// 	cout<<"the number of     suvived good loops    is: "<<activeLoops.size()<<std::endl;
+		// 	cout<<" "<<endl;
+		// 	cout<<"the number of         true  loops       is: "<< clusterizer.NumOfRealLoops<<" "<<endl;
+		// 	cout<<" "<<endl;
+		// 	cout<<"the number of      loops in testfile    is: "<< clusterizer.LP_Trans_Covar_Map.size()<<" "<<endl;
+		// 	cout<<" "<<endl;
+		// 	cout<<"the                  accuracy rate      is: "<<
+		// 		(goodLN+addTrue)*1.0/(activeLoops.size())<<" "<<endl;
+		// 	cout<<" "<<endl;
+		// 	cout<<"the                  recall  rate       is: "<< 
+		// 		(forRecall+addTrue)*1.0/(clusterizer.set4GTL.size())<<" "<<endl;
+		// 	cout<<" ********************************************************* "<<endl;
+		// 	cout<<" "<<endl;
+		// }
+		// else
+		// 	cout<<"no change happen after recheck the doubt loops "<<endl;
+		// // sleep(3);
+		// return true;
 	}
 
     bool checkConflict(std::set<int> & goodSet, std::set<int > & confClusterSet, std::vector<int> &clustersDeletedInConflictCheck)

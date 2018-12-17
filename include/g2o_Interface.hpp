@@ -105,7 +105,10 @@ public:
 		return true;
 	}
 
-
+	static bool cmp_reverse(  const g2o::HyperGraph::Edge* p,  const g2o::HyperGraph::Edge* q)
+	{
+		return p->vertex(0)->id() < q->vertex(0)->id();
+	}
 	bool getLoopClosures(IntPairSet& loops)
 	{
 		if(optimizer == NULL)
@@ -136,18 +139,32 @@ public:
 			}
 			else
 			{
+				// if(e1 != odomteryEdges.size())
+					// cout<<"first step "<<e1<<" "<<e2<<" *"<<endl;
+				// else
+				// 	cout<<"first step "<<e1<<" "<<e2<<endl;
 				odomteryEdges.push_back(*eIt);
 			}
 		}
 		odoSize = odomteryEdges.size();
+		// std::sort (odomteryEdges.begin(), odomteryEdges.end(), cmp_reverse);
 		// cout<<"loop size: "<<loops.size()<<endl;
 		// printf("This error is in %s on line %d\n",  __FILE__, __LINE__);
 		// exit(0);
+
+		// for(int i=0; i<odomteryEdges.size(); i++)
+		// {
+		// 	if(odomteryEdges[i]->vertex(0)->id() != i or odomteryEdges[i]->vertex(1)->id() != (i+1))
+		// 		cout<<odomteryEdges[i]->vertex(0)->id()<<" "<<odomteryEdges[i]->vertex(1)->id()<<" **"<<endl;
+		// 	else
+		// 		cout<<odomteryEdges[i]->vertex(0)->id()<<" "<<odomteryEdges[i]->vertex(1)->id()<<endl;
+		// }
 
 		for(int i=0; i<odomteryEdges.size(); i++)
 		{
 			if(odomteryEdges[i]->vertex(0)->id() != i or odomteryEdges[i]->vertex(1)->id() != (i+1))
 			{
+				cout<<"odo size is "<<odoSize<<endl;
 				cout<<"check if it is odometry edge fail"<<endl;
 				cout<<"i is "<<i<<" but first vertex id is "<< 
 				 	odomteryEdges[i]->vertex(0)->id()<<" and second vertex id is "<<odomteryEdges[i]->vertex(1)->id()<<endl;
@@ -414,6 +431,131 @@ public:
 	  	// rho[1] = 1. / aux;
 	  	// rho[2] = -dsqrReci * std::pow(rho[1], 2);
 	}	
+
+	
+	IntPairDoubleMap optimize_active_robustKernel(const IntPairSet& activeLoops, const int nIterations,
+		int startRegion, int endRegion, std::vector<std::array<double, 5>> & odoEdgeError,
+		std::vector< g2o::HyperGraph::Edge* > &newEdgeVector, std::vector<std::pair<int, int>> & artificialLoops)	
+	{
+		cout<<" optimize_active_robustKernel"<<endl;
+		std::pair<std::pair<int, int>, double> odoErrorElement;
+		int node, endNode;
+		std::array<double, 5> element_error;
+		double information_Angle;
+
+		odoEdgeError.clear();
+
+		activeEdges.clear();
+		activeEdges.insert(odomteryEdges.begin(),odomteryEdges.end());
+		// activeEdges.insert(odomteryEdges.begin() + startRegion,odomteryEdges.begin() + endRegion);
+		for(
+			int i = 0;
+			i < newEdgeVector.size();
+			i++)			
+		{
+         	// 核函数
+         	// dynamic_cast< EdgeType* >(loopclosureEdges[*it])->setRobustKernel( new g2o::RobustKernelHuber() );	
+         	dynamic_cast< EdgeType* >(newEdgeVector[i])->setRobustKernel( new g2o::RobustKernelCauchy() );
+			activeEdges.insert( newEdgeVector[i]);
+		}
+		for(
+			IntPairSet::const_iterator it = activeLoops.begin(), end = activeLoops.end();
+			it!=end;
+			it++)
+		{
+         	dynamic_cast< EdgeType* >(loopclosureEdges[*it])->setRobustKernel( new g2o::RobustKernelHuber() );	
+         	// dynamic_cast< EdgeType* >(loopclosureEdges[*it])->setRobustKernel( new g2o::RobustKernelCauchy() );
+			activeEdges.insert( loopclosureEdges[*it]);
+		}
+		
+
+		IntPairDoubleMap loopClosureLinkError;
+		restore();
+		//
+		optimizer->setVerbose(false);
+	    // optimizer->setVerbose(true);
+
+  //       endRegion = 0;
+		// optimizer->vertex(endRegion)->setFixed(true);
+		optimizer->findGauge()->setFixed(true);
+		// optimizer->vertices().clear();
+
+		optimizer->initializeOptimization(activeEdges);
+
+		optimizer->optimize(nIterations,false);
+		optimizer->computeActiveErrors();
+		optimizer->findGauge()->setFixed(false);
+
+		double sumLoopChieErr = 0, sum_cauchy =0.0, sum_huber = 0.0, middle_chi;
+		g2o::Vector3 rho;
+		if(activeLoops.size() >= 1)
+		{
+			for(
+				IntPairSet::const_iterator it = activeLoops.begin(), end = activeLoops.end();
+				it!=end;
+				it++)
+			{
+
+				middle_chi = dynamic_cast< EdgeType* >(loopclosureEdges[*it])->chi2();	
+				sumLoopChieErr = sumLoopChieErr + middle_chi;
+				// loopClosureLinkError[*it] = dynamic_cast< EdgeType* >(loopclosureEdges[*it])->chi2();	
+
+				cout<<"loop "<<(*it).first<<" "<<(*it).second<<"  has error "<<middle_chi<<endl;
+
+				// cauchy 
+				huber_chi2(middle_chi, rho);
+				// cauchy_chi2(middle_chi, rho);
+				loopClosureLinkError[*it] = rho[0];
+				// loopClosureLinkError[*it] = middle_chi;
+				sum_cauchy = sum_cauchy + rho[0];	
+
+	  			// cout<<"*   cauchy    has robust error "<<rho[0]<<"  sum_cauchy:"<<sum_cauchy<<" "<<"  sum_chi:"<<sumLoopChieErr<<endl;
+			}
+
+			for(int i = 0 ; i < artificialLoops.size(); i++)
+			{
+
+				middle_chi = dynamic_cast< EdgeType* >(newEdgeVector[i])->chi2();	
+				sumLoopChieErr = sumLoopChieErr + middle_chi;
+				// loopClosureLinkError[*it] = dynamic_cast< EdgeType* >(loopclosureEdges[*it])->chi2();	
+				cout<<"*************"<<endl;
+				cout<<"loop "<<(artificialLoops[i]).first<<" "<<(artificialLoops[i]).second<<
+					"  has error "<<middle_chi<<endl;
+
+				// cauchy 
+				huber_chi2(middle_chi, rho);
+				// cauchy_chi2(middle_chi, rho);
+				// loopClosureLinkError[*it] = rho[0];
+				// loopClosureLinkError[*it] = middle_chi;
+				sum_cauchy = sum_cauchy + rho[0];	
+
+	  			cout<<"*   cauchy    has robust error "<<rho[0]<<"  sum_cauchy:"<<sum_cauchy<<" "<<"  sum_chi:"<<sumLoopChieErr<<endl;
+			}
+
+			// NOTE : The number of edges involved is the last element
+			// loopClosureLinkError[IntPair(-1,0)] = optimizer->activeChi2(); // There can be no links with negative IDS
+			loopClosureLinkError[IntPair(-1,0)] = optimizer->activeRobustChi2();
+			loopClosureLinkError[IntPair(-1,-1)] = endRegion - startRegion + activeLoops.size();// optimizer->activeEdges().size();
+
+			loopClosureLinkError[IntPair(-2,0)] = sum_cauchy; // There can be no links with negative IDS
+			loopClosureLinkError[IntPair(-2,-1)] = activeLoops.size();		
+			//
+			cout<<"* sum        chi error is: "<<optimizer->activeChi2()<<endl;
+			cout<<"* sum robust chi error is: "<<optimizer->activeRobustChi2()<<endl;
+
+			// cout<<"* sum robust chi error is: "<<optimizer->activeChi2()<<endl;
+			// cout<<"* sum robust chi error is: "<<loopClosureLinkError[IntPair(-1,0)]<<endl;
+
+			// cout<<" * end optimize_active_robustKernel"<<endl;
+			// cout<<"if you want to exit the current optimization step, press any key"<<endl;
+			// cin.get();	
+					
+			return loopClosureLinkError;
+		}
+
+	}
+
+
 	// IntPairDoubleMap optimize_active_robustKernel(const IntPairSet& activeLoops, const int nIterations,
 	// 	int & startRegion, int & endRegion, std::vector<std::array<double, 5>> & odoEdgeError,
 	// 	string ba, string aa)
@@ -421,13 +563,8 @@ public:
 		int startRegion, int endRegion, std::vector<std::array<double, 5>> & odoEdgeError)	
 	{
 
-	// EdgePtrVector 					odomteryEdges;
-	// IntPairToEdgePtrMap				loopclosureEdges;
-	
-	// g2o::OptimizableGraph::EdgeSet 	activeEdges;
-	// g2o::OptimizableGraph::VertexSet 	activeVertexes;
 		cout<<" optimize_active_robustKernel"<<endl;
-		// cout<<"nodes range form "<<startRegion<<" to "<<endRegion<<endl;
+
 		std::pair<std::pair<int, int>, double> odoErrorElement;
 		int node, endNode;
 		std::array<double, 5> element_error;
@@ -459,20 +596,11 @@ public:
 			it!=end;
 			it++)
 		{
-			// if(*it == (std::pair<int,int> (4190, 4085)))
-			// 	continue;
-
-         	// 核函数
-         	// g2o::RobustKernelHuber();
-         	// RobustKernelCauchy
-         	// dynamic_cast< EdgeType* >(loopclosureEdges[*it])->setRobustKernel( new g2o::RobustKernelHuber() );	
-         	dynamic_cast< EdgeType* >(loopclosureEdges[*it])->setRobustKernel( new g2o::RobustKernelCauchy() );
-
-        	// loopclosureEdges[*it]->setRobustKernel( new g2o::RobustKernelHuber() );			
-			// loopclosureEdges[*it].
+         	dynamic_cast< EdgeType* >(loopclosureEdges[*it])->setRobustKernel( new g2o::RobustKernelHuber() );	
+         	// dynamic_cast< EdgeType* >(loopclosureEdges[*it])->setRobustKernel( new g2o::RobustKernelCauchy() );
 			activeEdges.insert( loopclosureEdges[*it]);
 		}
-		cout<<"nIterations is "<<nIterations<<endl;
+		
 
 		IntPairDoubleMap loopClosureLinkError;
 		restore();
@@ -480,16 +608,127 @@ public:
 		optimizer->setVerbose(false);
 	    // optimizer->setVerbose(true);
 
-        endRegion = 0;
-		optimizer->vertex(endRegion)->setFixed(true);
-
+  //       endRegion = 0;
+		// optimizer->vertex(endRegion)->setFixed(true);
+		optimizer->findGauge()->setFixed(true);
 		// optimizer->vertices().clear();
 
 		optimizer->initializeOptimization(activeEdges);
 
 		optimizer->optimize(nIterations,false);
+		// optimizer->optimize(10,false);
 		optimizer->computeActiveErrors();
-		// optimizer->vertex(endRegion)->setFixed(false);
+		optimizer->findGauge()->setFixed(false);
+
+		double sumLoopChieErr = 0, sum_cauchy =0.0, sum_huber = 0.0, middle_chi;
+		g2o::Vector3 rho;
+		if(activeLoops.size() >= 1)
+		{
+			for(
+				IntPairSet::const_iterator it = activeLoops.begin(), end = activeLoops.end();
+				it!=end;
+				it++)
+			{
+
+				middle_chi = dynamic_cast< EdgeType* >(loopclosureEdges[*it])->chi2();	
+				sumLoopChieErr = sumLoopChieErr + middle_chi;
+				// loopClosureLinkError[*it] = dynamic_cast< EdgeType* >(loopclosureEdges[*it])->chi2();	
+
+				cout<<"loop "<<(*it).first<<" "<<(*it).second<<"  has error "<<middle_chi<<endl;
+
+				// cauchy 
+				huber_chi2(middle_chi, rho);
+				// cauchy_chi2(middle_chi, rho);
+				// loopClosureLinkError[*it] = rho[0];
+				loopClosureLinkError[*it] = middle_chi;
+				sum_cauchy = sum_cauchy + rho[0];	
+
+	  			cout<<"*   cauchy    has robust error "<<rho[0]<<"  sum_cauchy:"<<sum_cauchy<<" "<<"  sum_chi:"<<sumLoopChieErr<<endl;
+			}
+
+			// NOTE : The number of edges involved is the last element
+			// loopClosureLinkError[IntPair(-1,0)] = optimizer->activeChi2(); // There can be no links with negative IDS
+			loopClosureLinkError[IntPair(-1,0)] = optimizer->activeRobustChi2();
+			loopClosureLinkError[IntPair(-1,-1)] = endRegion - startRegion + activeLoops.size();// optimizer->activeEdges().size();
+
+			loopClosureLinkError[IntPair(-2,0)] = sum_cauchy; // There can be no links with negative IDS
+			loopClosureLinkError[IntPair(-2,-1)] = activeLoops.size();		
+			//
+			cout<<"* sum        chi error is: "<<optimizer->activeChi2()<<endl;
+			cout<<"* sum robust chi error is: "<<optimizer->activeRobustChi2()<<endl;
+
+			// cout<<"* sum robust chi error is: "<<optimizer->activeChi2()<<endl;
+			// cout<<"* sum robust chi error is: "<<loopClosureLinkError[IntPair(-1,0)]<<endl;
+
+			// cout<<" * end optimize_active_robustKernel"<<endl;
+			// cout<<"if you want to exit the current optimization step, press any key"<<endl;
+			// cin.get();	
+					
+			return loopClosureLinkError;
+		}
+
+	}
+
+	IntPairDoubleMap optimize_active_robustKernel_multi(const IntPairSet& activeLoops, const int nIterations,
+		int startRegion, int endRegion, std::vector<std::array<double, 5>> & odoEdgeError)	
+	{
+
+		cout<<" optimize_active_robustKernel"<<endl;
+
+		std::pair<std::pair<int, int>, double> odoErrorElement;
+		int node, endNode;
+		std::array<double, 5> element_error;
+		double information_Angle;
+
+		odoEdgeError.clear();
+
+		activeEdges.clear();
+		activeEdges.insert(odomteryEdges.begin(),odomteryEdges.end());
+		// activeEdges.insert(odomteryEdges.begin() + startRegion,odomteryEdges.begin() + endRegion);
+		// for(
+		// 	EdgePtrVector::const_iterator it = odomteryEdges.begin(), end = odomteryEdges.end();
+		// 	it!=end;
+		// 	it++)
+		// for(
+		// 	int i = 0;
+		// 	i < odomteryEdges.size();
+		// 	i++)			
+		// {
+  //        	// 核函数
+  //        	// dynamic_cast< EdgeType* >(loopclosureEdges[*it])->setRobustKernel( new g2o::RobustKernelHuber() );	
+  //        	dynamic_cast< EdgeType* >(odomteryEdges[i])->setRobustKernel( new g2o::RobustKernelCauchy() );
+		// 	activeEdges.insert( odomteryEdges[i]);
+		// }
+
+
+		for(
+			IntPairSet::const_iterator it = activeLoops.begin(), end = activeLoops.end();
+			it!=end;
+			it++)
+		{
+         	// dynamic_cast< EdgeType* >(loopclosureEdges[*it])->setRobustKernel( new g2o::RobustKernelHuber() );	
+         	dynamic_cast< EdgeType* >(loopclosureEdges[*it])->setRobustKernel( new g2o::RobustKernelCauchy() );
+			activeEdges.insert( loopclosureEdges[*it]);
+		}
+		
+
+		IntPairDoubleMap loopClosureLinkError;
+		restore();
+		//
+		optimizer->setVerbose(false);
+	    // optimizer->setVerbose(true);
+
+  //       endRegion = 0;
+		// optimizer->vertex(endRegion)->setFixed(true);
+		optimizer->findGauge()->setFixed(true);
+		// optimizer->vertices().clear();
+
+		optimizer->initializeOptimization(activeEdges);
+		// nIterations = 10;
+		cout<<"nIterations: "<<10<<endl;
+		optimizer->optimize(15,false);
+		optimizer->computeActiveErrors();
+		optimizer->findGauge()->setFixed(false);
 
 		double sumLoopChieErr = 0, sum_cauchy =0.0, sum_huber = 0.0, middle_chi;
 		g2o::Vector3 rho;
@@ -511,7 +750,7 @@ public:
 				cauchy_chi2(middle_chi, rho);
 				// loopClosureLinkError[*it] = rho[0];
 				loopClosureLinkError[*it] = middle_chi;
-				sum_cauchy = sum_cauchy + loopClosureLinkError[*it];	
+				sum_cauchy = sum_cauchy + rho[0];	
 
 	  			cout<<"*   cauchy    has robust error "<<rho[0]<<"  sum_cauchy:"<<sum_cauchy<<" "<<"  sum_chi:"<<sumLoopChieErr<<endl;
 			}
@@ -519,48 +758,25 @@ public:
 			// NOTE : The number of edges involved is the last element
 			// loopClosureLinkError[IntPair(-1,0)] = optimizer->activeChi2(); // There can be no links with negative IDS
 			loopClosureLinkError[IntPair(-1,0)] = optimizer->activeRobustChi2();
-			loopClosureLinkError[IntPair(-1,-1)] = optimizer->activeEdges().size();
+			loopClosureLinkError[IntPair(-1,-1)] = endRegion - startRegion + activeLoops.size();// optimizer->activeEdges().size();
 
 			loopClosureLinkError[IntPair(-2,0)] = sum_cauchy; // There can be no links with negative IDS
 			loopClosureLinkError[IntPair(-2,-1)] = activeLoops.size();		
 			//
+			cout<<"* sum        chi error is: "<<optimizer->activeChi2()<<endl;
+			cout<<"* sum robust chi error is: "<<optimizer->activeRobustChi2()<<endl;
+
+			// cout<<"* sum robust chi error is: "<<optimizer->activeChi2()<<endl;
+			// cout<<"* sum robust chi error is: "<<loopClosureLinkError[IntPair(-1,0)]<<endl;
+
+			// cout<<" * end optimize_active_robustKernel"<<endl;
+			// cout<<"if you want to exit the current optimization step, press any key"<<endl;
+			// cin.get();	
+					
 			return loopClosureLinkError;
 		}
-		else
-		{
-			for(
-				IntPairSet::const_iterator it = activeLoops.begin(), end = activeLoops.end();
-				it!=end;
-				it++)
-			{
-				middle_chi = dynamic_cast< EdgeType* >(loopclosureEdges[*it])->chi2();	
-				sumLoopChieErr = sumLoopChieErr + middle_chi;
-				// loopClosureLinkError[*it] = dynamic_cast< EdgeType* >(loopclosureEdges[*it])->chi2();	
 
-				cout<<"loop "<<(*it).first<<" "<<(*it).second<<"  has error "<<middle_chi<<endl;
-
-				// cauchy 
-				// huber_chi2(middle_chi, rho);
-				cauchy_chi2(middle_chi, rho);
-				loopClosureLinkError[*it] = rho[0];
-				sum_cauchy = sum_cauchy + loopClosureLinkError[*it];	
-
-	  			cout<<"*   cauchy    has robust error "<<rho[0]<<"  sum_cauchy:"<<sum_cauchy<<" "<<"  sum_chi:"<<sumLoopChieErr<<endl;
-			}
-
-			// NOTE : The number of edges involved is the last element
-			// loopClosureLinkError[IntPair(-1,0)] = optimizer->activeChi2(); // There can be no links with negative IDS
-			loopClosureLinkError[IntPair(-1,0)] = optimizer->activeChi2();
-			loopClosureLinkError[IntPair(-1,-1)] = optimizer->activeEdges().size();
-
-			loopClosureLinkError[IntPair(-2,0)] = middle_chi; // There can be no links with negative IDS
-			loopClosureLinkError[IntPair(-2,-1)] = activeLoops.size();		
-			//
-			cout<<"end optimize_active_robustKernel"<<endl;
-			return loopClosureLinkError;
-		}
 	}
-
 	IntPairDoublePairMap optimize_active_robustKernel_pair_return(const IntPairSet& activeLoops, const int nIterations,
 		int startRegion, int endRegion, std::vector<std::array<double, 5>> & odoEdgeError)	
 	{
@@ -647,7 +863,7 @@ public:
 			{
 				error_pair.second = dynamic_cast< EdgeType* >(loopclosureEdges[*it])->chi2();	
 				sumLoopChieErr = sumLoopChieErr + error_pair.second;
-				// loopClosureLinkError[*it] = dynamic_cast< EdgeType* >(loopclosureEdges[*it])->chi2();	
+				loopClosureLinkError[*it] = dynamic_cast< EdgeType* >(loopclosureEdges[*it])->chi2();	
 
 				cout<<"loop "<<(*it).first<<" "<<(*it).second<<"  has error "<<error_pair.second<<endl;
 
@@ -656,7 +872,7 @@ public:
 				cauchy_chi2(error_pair.second, rho);
 				error_pair.first = rho[0];
 				// loopClosureLinkError[*it] = rho[0];
-				loopClosureLinkError[*it] = error_pair;
+				// loopClosureLinkError[*it] = error_pair;
 				sum_cauchy = sum_cauchy + loopClosureLinkError[*it].first;	
 
 	  			cout<<"*   cauchy    has robust error "<<rho[0]<<"  sum_cauchy:"<<sum_cauchy<<" "<<"  sum_chi:"<<sumLoopChieErr<<endl;
@@ -670,9 +886,10 @@ public:
 			loopClosureLinkError[IntPair(-2,0)] = std::pair<double, double>(sum_cauchy, 0); // There can be no links with negative IDS
 			loopClosureLinkError[IntPair(-2,-1)] = std::pair<double, double>(activeLoops.size(), 0);		
 			//
-			cout<<"end optimize_active_robustKernel_pair_return"<<endl;
+			
 			return loopClosureLinkError;
 		}
+		cout<<"end optimize_active_robustKernel_pair_return"<<endl;
 	}
 	IntPairDoubleMap optimize_robustKernel(const IntPairSet& activeLoops, const int nIterations,
 		 std::vector<std::array<double, 5>> & odoEdgeError)	
@@ -704,7 +921,7 @@ public:
 
          	// 核函数
          	// g2o::RobustKernelHuber();
-         	dynamic_cast< EdgeType* >(loopclosureEdges[*it])->setRobustKernel( new g2o::RobustKernelCauchy() );	
+         	dynamic_cast< EdgeType* >(loopclosureEdges[*it])->setRobustKernel( new g2o::RobustKernelHuber() );	
         	// loopclosureEdges[*it]->setRobustKernel( new g2o::RobustKernelHuber() );			
 			// loopclosureEdges[*it].
 			activeEdges.insert( loopclosureEdges[*it]);
@@ -743,8 +960,8 @@ public:
 			cout<<"loop "<<(*it).first<<" "<<(*it).second<<"  has error "<<middle_chi<<endl;
 
 			// cauchy 
-			// huber_chi2(middle_chi, rho);
-			cauchy_chi2(middle_chi, rho);
+			huber_chi2(middle_chi, rho);
+			// cauchy_chi2(middle_chi, rho);
 			loopClosureLinkError[*it] = rho[0];
 			sumLoopChieErr = sumLoopChieErr + loopClosureLinkError[*it];	
 

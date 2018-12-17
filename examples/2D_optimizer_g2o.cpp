@@ -27,7 +27,6 @@
 #include "g2o/core/optimization_algorithm_gauss_newton.h"
 #include "g2o/solvers/csparse/linear_solver_csparse.h"
 
-
 #include <string>
 
 
@@ -261,13 +260,25 @@ int main(int argc, char** argv)
 	 * If we didn't remove the wrong loop closures earlier, remove them now
 	 */
 	rrr.removeIncorrectLoops();
+   	time_out.open("/home/zihao/Documents/robust_slam/timeConsumingEachPart/recall_precision_bits_file.txt", std::ios::out | std::ios::app);  
+       if (!time_out.is_open())
+       {
+       	cout<<"can open bit file"<<endl;
+       	return 0;
+       }
+       else
+       	cout<<"open bit file"<<endl;
+        
+    // recall_precision_bits_file.open("/home/zihao/Documents/robust_slam/timeConsumingEachPart/recall_precision_bits_file.txt", std::ios::out | std::ios::app);  
+    time_out<<"reall "<<rrr.lostGood<<" "<<"precision "<<rrr.allfalseAccepted<<endl;
+ 	time_out.close();
 
 	/*
 	 * This will write a graph with only the correct loop closures, even when we have not
 	 * elimiated incorrect ones using one of the methods above.
 	 * */
-	std::cout<<std::endl;
-	std::cout<<"Output written to flexible-solved.g2o"<<std::endl;
+	// std::cout<<"Output written to flexible-solved.g2o"<<std::endl;
+
 
 	 // rrr.write(g2f);
 	rrr.write("flexible-solved.g2o");
@@ -283,8 +294,14 @@ int main(int argc, char** argv)
 	
 	//optimizer.save("g2o-saved.g2o");
 
-
-	return 0;
+ 	if(rrr.lostGood == 0 and rrr.allfalseAccepted == 0)
+ 	{
+ 		cout<<std::to_string(1)<<endl;
+ 	}
+ 	else
+ 		cout<<std::to_string(0)<<endl;
+ 	
+	return 1;
 }
 
 

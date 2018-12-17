@@ -62,7 +62,7 @@ class Clusterizer
 
 	std::vector<std::vector< std::vector<int> > >  node_sequence;
 	std::vector<std::vector<std::vector<std::pair<g2o::SE2, Matrix3d> > > > transSequence_whole;
-	std::vector<std::array<double,4>> VertexInf;
+	
 
 	std::map<std::pair<int, int>, std::array<double,9>> LC_Inf;	
 	std::vector<double> distance;
@@ -74,6 +74,9 @@ class Clusterizer
 	int wholeLoopN = 0;
 
 public:
+	std::vector<std::pair<int ,int>> good_loops_vector, bad_loops_vector;
+	std::set<int> mixed_clusters;
+	std::vector<std::array<double,4>> VertexInf;
 	std::set<std::pair<int, int > > bad_loops_set_self_check;
 	double snrThres = 1, index_dispersion; //3.16; 10
 	bool futile_two_segments;
@@ -158,22 +161,26 @@ public:
 		return ;
 	}
 
-	void updateConflictPairSet(std::vector<int> & conflict, int finalClusterID)
+	void updateConflictPairSet(std::vector<int> & conflict, int finalClusterID, std::vector<int> & uncertain, bool show)
 	{
+		std::pair<int, int> a, b;
 		if(conflict.size() > 0)
 		{
 			if(finalClusterID >= 0)
 			{
-				std::pair<int, int> a, b;
 				for(int i = 0; i < conflict.size(); i++)
 				{
 					a.first = finalClusterID;
 					a.second = conflict[i];
 					b.first = conflict[i];
 					b.second = finalClusterID;
+					if(conflictPairSet.find(a) == conflictPairSet.end())
+					{
+						conflictPairSet.insert(a);
+						conflictPairSet.insert(b);
+						// cout<<"add conflict pair "<<finalClusterID<<" "<<conflict[i]<<endl;
+					}
 
-					conflictPairSet.insert(a);
-					conflictPairSet.insert(b);
 				}	
 			}
 			else
@@ -185,7 +192,58 @@ public:
 		}
 		else
 		{
-			return;
+			// return;
+		}
+		if(uncertain.size()> 0)
+		{
+			if(finalClusterID >= 0)
+			{
+				for(int i = 0; i < uncertain.size(); i++)
+				{
+					a.first = finalClusterID;
+					a.second = uncertain[i];
+					b.first = uncertain[i];
+					b.second = finalClusterID;
+					if(conflictPairSet.find(a) != conflictPairSet.end())
+					{
+						conflictPairSet.erase(a);
+						conflictPairSet.erase(b);
+						// cout<<"delete from unvertain pair "<<finalClusterID<<" "<<uncertain[i]<<endl;
+					}
+
+				}	
+			}
+			else
+			{
+				cout<<"clsuter id is  negative "<<endl;
+				printf("This fake error is in %s on line %d\n",  __FILE__, __LINE__);
+				exit(0) ;				
+			}
+		}
+		if(show)
+		{
+			if(conflict.size() > 0)
+			{
+				cout<<"conflict cluster pair:"<<endl;
+				for(int i = 0; i < conflict.size(); i++)
+				{
+					cout<<finalClusterID<<" "<<conflict[i]<<endl;
+				}
+			}
+			else
+				cout<<"no conflict info"<<endl;
+	
+			if(uncertain.size() > 0)
+			{
+				cout<<"umcertain cluster pair:"<<endl;
+				for(int i = 0; i < uncertain.size(); i++)
+				{
+					cout<<finalClusterID<<" "<<uncertain[i]<<endl;
+				}
+			}
+			else
+				cout<<"no uncertain info"<<endl;
+				
 		}
 	}
 
@@ -815,15 +873,24 @@ public:
 		std::vector<double> transDisWhole;
 		std::vector<int> consisBitVector;
 
+		// find the biggest set
+		int biggestCluster = 0;
+		for(int i=_clustersFound.size()-1; i >= 0; i--)
+		{
+			if(getClusterByID(i).size() > getClusterByID(biggestCluster).size() )
+				biggestCluster = getClusterByID(i).size();
+		}
+		std:set<int> checkedClusterSet;
 		//iterate the elements in clusters, if find one consistent cluster, jump out loop.
 		std::pair<int, int> Pair;
 		for(int i=_clustersFound.size()-1; i >= 0; i--)
 		{
 			conflict_cause_pairs.clear();
 			bool pass  = 0;
-			double bigChiErr = 0, passChi = 100.0;
+			double bigChiErr = 0, passChi = 100.0, smallChiErr = -1.0;
 			double transformDistance;
 			nodeDisVector.clear();
+			// cout<<"test clsuter "<<i<<endl;
 
 			for(int wholeDis = 0; wholeDis < _clustersFound[i].positionserial.size(); wholeDis++)
 			{
@@ -856,34 +923,40 @@ public:
 				if(nodeDisVector[wholeDis].first > abs((*LP_nodes).first - (*LP_nodes).second))
 				{
 					reV =  check_single_loop_odo(*LP_nodes, LP_Trans_Covar_Map, futileBit1, beli);
-					cout<<"the self dis is "<<reV.second<<endl;	
-					if((futileBit1) != 1)
-					{
+					// cout<<"the self dis is "<<reV.second<<endl;	
+					// if((futileBit1) != 1)
+					// {
 						if((reV.first == 1))
 						{
-							// cout<<" * the dis is "<<reV.second<<endl;
 							// disVector.push_back(reV.second);
+							// if((*LP_nodes).first == 79)
+							// 	cin.get();
 						}		
 						else
 						{
-							if(reV.second > upperLimitChi)
-							{
+							// if(reV.second > utils::chi2_continuous(3,0.95))
+							// {
 								conflict_cause_element.second = conflict_cause_pairs;
 								conflict_cause_element.first = i;
 								conflict_cause.push_back(conflict_cause_element);
 								conflict_cluster.push_back(i);
 								bad_loops_set_self_check.insert(*LP_nodes);
 								return;
-							}
-							else
-							{
-								break;
-							}
+							// }
+							// else
+							// {
+							// 	break;
+							// }
 											
-						}					
-					}
-					else
-						break;
+						}	
+
+						if((futileBit1) == 1)
+						{
+							break;
+						}				
+					// }
+					// else
+					// 	break;
 				}
 
 				loop_node_pair.first = _clustersFound[i].positionserial[loopIDNearest][0];
@@ -907,6 +980,10 @@ public:
 					{
 						if(bigChiErr < transformDistance)
 							bigChiErr = transformDistance;
+						if(smallChiErr < 0)
+							smallChiErr = transformDistance;	
+						else if(smallChiErr > transformDistance )
+							smallChiErr = transformDistance;						
 						if(reV.first == 1)			
 						{
 							pass  = 1;
@@ -929,6 +1006,7 @@ public:
 					}
 					else
 					{
+						cout<<"futile inner"<<endl;
 						consisBitVector.push_back(0);
 						break;
 					}
@@ -966,8 +1044,9 @@ public:
 			//if fail to pass the chi2 test, handle it based on the transform distance // nineNineBelief twelveBelief
 			else
 			{
+				// cout<<"smallChiErr: "<<smallChiErr<<"  "<<endl;
 				// if(bigChiErr >  upperLimitChi and pass!= 1)//tenUpperLimit
-				if(bigChiErr >  upperLimitChi)
+				if(smallChiErr > upperLimitChi )
 				{
 					conflict_cause_element.second = conflict_cause_pairs;
 					conflict_cause_element.first = i;
@@ -978,7 +1057,7 @@ public:
 				// {
 				// 	uncertain_cluster.insert(i);
 				// }
-				else 
+				else if(smallChiErr < utils::chi2_continuous(3,0.95) and smallChiErr > 0)
 				{
 					// cons_cluster_number.push_back(i);
 					// chiStatis.push_back(transform_distance);
@@ -2013,6 +2092,16 @@ public:
 				syntheticOdo1000_dis, 
 				syntheticOdo10000_dis);
 
+		ofstream fileStreamr; 
+		
+		for(IntPairSet::const_iterator it = loops.begin(), lend = loops.end();it!=lend;it++)
+		{
+			if(set4GTL.find(*it) != set4GTL.end())
+				good_loops_vector.push_back(*it);
+			else
+				bad_loops_vector.push_back(*it);
+		}		
+
 		prepare_accelerateBySynthetic(OdoInf, 
 				syntheticOdo10_trans_varMatrix_adjoint,
 				syntheticOdo100_trans_varMatrix_adjoint,
@@ -2023,18 +2112,6 @@ public:
 				syntheticOdo1000_dis_adjoint, 
 				syntheticOdo10000_dis_adjoint);
 
-		ofstream fileStreamr; 
-		
-
-		std::vector<std::pair<int ,int>> good_loops_vector, bad_loops_vector;
-
-		for(IntPairSet::const_iterator it = loops.begin(), lend = loops.end();it!=lend;it++)
-		{
-			if(set4GTL.find(*it) != set4GTL.end())
-				good_loops_vector.push_back(*it);
-			else
-				bad_loops_vector.push_back(*it);
-		}
 
 		fileStreamr.open("loop_serial.txt",ios::trunc);
 		for(int i = 0; i < good_loops_vector.size(); i++)
@@ -2289,7 +2366,7 @@ public:
 			fullLoopInfo = get_LC_Pos( start,  end);
 			//print loop number and cluster id of the loop
 			num_loop++;
-			cout<<" "<<endl<<"loop "<<num_loop<<" "<<start<<" "<<end<<endl;
+			// cout<<" "<<endl<<"loop "<<num_loop<<" "<<start<<" "<<end<<endl;
 			// cout<<"current has "<<_clustersFound.size()<<" clusters"<<endl;
 
 			if(_clustersFound.empty())
@@ -2326,6 +2403,7 @@ public:
 						uncertain_set, LP_Trans_Covar_Map, VertexInf, 1 , chiStatis,  futileBit, strictBelief);
 				if(bad_loops_set_self_check.find(*it) != bad_loops_set_self_check.end())
 				{
+					loopToClusterIDMap[*it] = -3;
 					continue;
 				}
 				// cons_cluster_number.clear();
@@ -2337,7 +2415,7 @@ public:
 				//size equal to 0, then it means find no constent cluster, so construct a new cluster
 				if(cons_cluster_number.size() == 0 )
 				{
-					cout<<"no consistent cluster found"<<endl;
+					// cout<<"no consistent cluster found"<<endl;
 					cluster s(start,end,_clustersFound.size());
 					s.positionserial.push_back(fullLoopInfo);
 
@@ -2367,7 +2445,7 @@ public:
 
 						for(int addMap = 0; addMap < conflict_cluster_set.size(); addMap++)
 						{
-							cout<<consCluster_serialNum<<" conflict to clsuter "<<conflict_cluster_set[addMap]<<endl;
+							// cout<<consCluster_serialNum<<" conflict to clsuter "<<conflict_cluster_set[addMap]<<endl;
 							conflictClusterPairDistanceMap[std::pair<int,int> (conflict_cluster_set[addMap], consCluster_serialNum)] =
 							 	conflictClusterDistanceMap[conflict_cluster_set[addMap]];
 							conflictClusterPairDistanceMap[std::pair<int,int> (consCluster_serialNum, conflict_cluster_set[addMap])] =
@@ -2378,7 +2456,7 @@ public:
 				//find one constent cluster, add the loop to it
 				else if (cons_cluster_number.size() == 1)
 				{
-					cout<<"only one consistent cluster: "<<cons_cluster_number[0]<<endl;
+					// cout<<"only one consistent cluster: "<<cons_cluster_number[0]<<endl;
 
 					consCluster_serialNum = cons_cluster_number[0];
 					_clustersFound[consCluster_serialNum].positionserial.push_back(fullLoopInfo);
@@ -2418,7 +2496,7 @@ public:
 
 						for(int addMap = 0; addMap < conflict_cluster_set.size(); addMap++)
 						{
-							cout<<consCluster_serialNum<<" conflict to clsuter "<<conflict_cluster_set[addMap]<<endl;
+							// cout<<consCluster_serialNum<<" conflict to clsuter "<<conflict_cluster_set[addMap]<<endl;
 							conflictClusterPairDistanceMap[std::pair<int,int> (conflict_cluster_set[addMap], consCluster_serialNum)] =
 							 	conflictClusterDistanceMap[conflict_cluster_set[addMap]];
 							conflictClusterPairDistanceMap[std::pair<int,int> (consCluster_serialNum, conflict_cluster_set[addMap])] =
@@ -2439,11 +2517,11 @@ public:
 						exit(0);	
 					}
 
-					cout<<" consistent cluster: "<<cons_cluster_number[0]<<endl;
+					// cout<<" consistent cluster: "<<cons_cluster_number[0]<<endl;
 
 					for(int selectFromMultiConsCluster = 1; selectFromMultiConsCluster < chiStatis.size(); selectFromMultiConsCluster++)
 					{
-						cout<<" consistent cluster: "<<cons_cluster_number[selectFromMultiConsCluster]<<endl;
+						// cout<<" consistent cluster: "<<cons_cluster_number[selectFromMultiConsCluster]<<endl;
 
 						if(chiStatis[selectFromMultiConsCluster] < chiStatis[best_cons])
 							best_cons = selectFromMultiConsCluster;
@@ -2506,7 +2584,7 @@ public:
 
 						for(int addMap = 0; addMap < conflict_cluster_set.size(); addMap++)
 						{
-							cout<<consCluster_serialNum<<" conflict to clsuter "<<conflict_cluster_set[addMap]<<endl;
+							// cout<<consCluster_serialNum<<" conflict to clsuter "<<conflict_cluster_set[addMap]<<endl;
 							conflictClusterPairDistanceMap[std::pair<int,int> (conflict_cluster_set[addMap], consCluster_serialNum)] =
 							 	conflictClusterDistanceMap[conflict_cluster_set[addMap]];
 							conflictClusterPairDistanceMap[std::pair<int,int> (consCluster_serialNum, conflict_cluster_set[addMap])] =
@@ -2515,12 +2593,12 @@ public:
 					}
 				}
 				// update the conflict cluster pair
-				updateConflictPairSet(conflict_cluster_set,  consCluster_serialNum);
+				updateConflictPairSet(conflict_cluster_set,  consCluster_serialNum, uncertain_set, 0);
 				updateConflictCause(consCluster_serialNum, conflict_cause)	;
 						
 			}
-
-			// int sf = 125, ef = 1028;
+ 
+			// int sf = 698, ef = 870;
 			// if((start == sf  and end == ef) or (end == sf  and  start == ef))
 			// {
 			// 		if(node_distance_cons.size() > 1)
@@ -2576,7 +2654,7 @@ public:
 		// 	}
 
 		// }
-
+		// cin.get();
 		// save the cluster information
 		std::array<double,6> ty={1,1,1,1,1,1};
 
@@ -2584,7 +2662,7 @@ public:
 		// std::cin.get();
 
 		// fileStream.open("clusterFile.g2o",ios::trunc);
-		std::set<int> mixed_clusters;
+		
 		std::pair<g2o::SE2, Matrix3d> tSave;
 		double cluster_id;
 
@@ -2661,7 +2739,31 @@ public:
 		}
 		fileStreamr.close();		
 
+		fileStreamr.open("clusters_to_use.txt",ios::trunc);
+	
+		// // cout<<"clusters:"<<endl;
+		// fileStreamr.open("cluster-all.txt",ios::trunc);
 
+		for(size_t i=0; i< _clustersFound.size(); i++)
+		{
+			cluster_id = clusterSizeVector[i].first;
+			if(mixed_clusters.find(cluster_id) != mixed_clusters.end())
+				fileStreamr<<"clusterID "<<cluster_id<<" "<<clusterSizeVector[i].second<<" "<<i+1<<" mixed"<<"\n";
+			else
+				fileStreamr<<"clusterID "<<cluster_id<<" "<<clusterSizeVector[i].second<<" "<<i+1<<"\n";
+			for(std::vector<std::array<double,6>>::const_iterator itVertex = _clustersFound[cluster_id].positionserial.begin(), 
+				lendVertex = _clustersFound[cluster_id].positionserial.end();itVertex!=lendVertex;itVertex++)
+			{
+				ty = *itVertex;
+
+				tSave = LP_Trans_Covar_Map[std::pair<int,int> (ty[0], ty[3])];
+
+				fileStreamr<<"EDGE_SE2 "<<ty[0]<<" "<<ty[3]<<" "<<tSave.first[0]<<" "<<tSave.first[1]<<" "<<tSave.first[2]
+					<<" "<<1.0/tSave.second(0,0)<<" "<<0<<" "<<0<<" "<<1.0/tSave.second(1,1)<<" "<<0<<" "<<1.0/tSave.second(2,2)<<"\n";
+				// fileStream<<trystdarray[0]<<"\n";
+			}	
+		}
+		fileStreamr.close();	
 #if 0
 		if(0)
 		{
@@ -2802,7 +2904,7 @@ public:
 			    	
 			    		VertexInf.push_back(verT);
 			    		// cout<<verT[0]<<" "<<verT[1]<<" "<<verT[2]<<" "<<verT[3]<<endl;
-			    		// cout<<VertexInf.size()<<endl;
+			    		// cout<<"vertex size: " <<VertexInf.size()<<endl;
 			    		// cout<<VertexInf[0][0]<<" "<<VertexInf[0][1]<<" "<<VertexInf[0][2]<<" "<<VertexInf[0][3]<<endl;
 			    		// exit(0);
 			    	}
@@ -2907,6 +3009,23 @@ public:
 		    	} 
 		    } 
 
+		    // check if odo and vertex vector are sequential
+		    bool esx = 0;
+		    for(int i_ = 0; i_ < VertexInf.size()-1; i_++)
+		    {
+		    	if(VertexInf[i_][0] != i_)
+		    	{
+		    		esx = 1;
+		    		cout<<"vertex info not match "<<"i = "<<i_<<", but vertex info[0] is "<<VertexInf[i_][0]<<endl;
+		    	}
+		    	if(OdoInf[i_][0] != OdoInf[i_][1]-1 or OdoInf[i_][0] != i_)
+		    	{
+		    		esx = 1;
+		    		cout<<"odo info[0] [3] i are "<<OdoInf[i_][0]<<" "<<OdoInf[i_][1]<<" "<<OdoInf[i_][0]<<" "<<i_<<endl;
+		    	}
+		    }
+		    if(esx == 1)
+		    	exit(0);
 		    if(OdoInf.size() != VertexInf.size()-1)
 		    {
 		    	cout<<"odo size: "<<OdoInf.size()<<" vertex size: "<<VertexInf.size()<<endl;
