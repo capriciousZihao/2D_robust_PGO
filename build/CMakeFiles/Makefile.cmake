@@ -16,6 +16,8 @@ set(CMAKE_MAKEFILE_DEPENDS
   "../cmake-modules/FindCholmod.cmake"
   "../cmake-modules/FindEigen3.cmake"
   "../cmake-modules/FindG2O.cmake"
+  "../cmake-modules/FindGFlags.cmake"
+  "../cmake-modules/FindGlog.cmake"
   "../cmake-modules/FindSuiteSparse.cmake"
   "../examples/CMakeLists.txt"
   "/usr/share/cmake-3.5/Modules/CMakeCCompiler.cmake.in"

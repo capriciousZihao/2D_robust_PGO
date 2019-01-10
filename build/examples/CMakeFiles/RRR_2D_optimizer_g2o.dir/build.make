@@ -104,6 +104,8 @@ examples/RRR_2D_optimizer_g2o: /usr/lib/x86_64-linux-gnu/libcamd.so
 examples/RRR_2D_optimizer_g2o: /usr/lib/x86_64-linux-gnu/libccolamd.so
 examples/RRR_2D_optimizer_g2o: /usr/local/lib/libmetis.so
 examples/RRR_2D_optimizer_g2o: /usr/lib/x86_64-linux-gnu/libsuitesparseconfig.so
+examples/RRR_2D_optimizer_g2o: /usr/local/lib/libglog.so
+examples/RRR_2D_optimizer_g2o: /usr/lib/x86_64-linux-gnu/libgflags.so
 examples/RRR_2D_optimizer_g2o: examples/CMakeFiles/RRR_2D_optimizer_g2o.dir/link.txt
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --bold --progress-dir=/home/zihao/cprogram/code/robustSLAM/robuts_slam_trans_dis_2/2D_robust_PGO/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_2) "Linking CXX executable RRR_2D_optimizer_g2o"
 	cd /home/zihao/cprogram/code/robustSLAM/robuts_slam_trans_dis_2/2D_robust_PGO/build/examples && $(CMAKE_COMMAND) -E cmake_link_script CMakeFiles/RRR_2D_optimizer_g2o.dir/link.txt --verbose=$(VERBOSE)

@@ -213,6 +213,24 @@ G2O_SLAM3D_LIBRARIES:FILEPATH=/usr/local/lib/libg2o_types_slam3d.so
 //Path to a library.
 G2O_STUFF:FILEPATH=/usr/local/lib/libg2o_stuff.so
 
+//Path to a file.
+GFLAGS_INCLUDE_DIR:PATH=/usr/include
+
+//Path to a library.
+GFLAGS_LIBRARY:FILEPATH=/usr/lib/x86_64-linux-gnu/libgflags.so
+
+//Folder contains Gflags
+GFLAGS_ROOT_DIR:PATH=
+
+//Path to a file.
+GLOG_INCLUDE_DIR:PATH=/usr/local/include
+
+//Path to a library.
+GLOG_LIBRARY:FILEPATH=/usr/local/lib/libglog.so
+
+//Folder contains Google glog
+GLOG_ROOT_DIR:PATH=
+
 //Value Computed by CMake
 RRR_BINARY_DIR:STATIC=/home/zihao/cprogram/code/robustSLAM/robuts_slam_trans_dis_2/2D_robust_PGO/build
 
@@ -363,4 +381,20 @@ EIGEN3_INCLUDE_DIR-ADVANCED:INTERNAL=1
 FIND_PACKAGE_MESSAGE_DETAILS_CHOLMOD:INTERNAL=[/usr/include/suitesparse][/usr/lib/x86_64-linux-gnu/libcholmod.so;/usr/lib/x86_64-linux-gnu/libamd.so;/usr/lib/x86_64-linux-gnu/libcolamd.so;/usr/lib/x86_64-linux-gnu/libcamd.so;/usr/lib/x86_64-linux-gnu/libccolamd.so;/usr/local/lib/libmetis.so;/usr/lib/x86_64-linux-gnu/libsuitesparseconfig.so][v()]
 //Details about finding Eigen3
 FIND_PACKAGE_MESSAGE_DETAILS_Eigen3:INTERNAL=[/usr/include/eigen3][TRUE][v(2.91.0)]
+//Details about finding GFlags
+FIND_PACKAGE_MESSAGE_DETAILS_GFlags:INTERNAL=[/usr/include][/usr/lib/x86_64-linux-gnu/libgflags.so][v()]
+//Details about finding Glog
+FIND_PACKAGE_MESSAGE_DETAILS_Glog:INTERNAL=[/usr/local/include][/usr/local/lib/libglog.so][v()]
+//ADVANCED property for variable: GFLAGS_INCLUDE_DIR
+GFLAGS_INCLUDE_DIR-ADVANCED:INTERNAL=1
+//ADVANCED property for variable: GFLAGS_LIBRARY
+GFLAGS_LIBRARY-ADVANCED:INTERNAL=1
+//ADVANCED property for variable: GFLAGS_ROOT_DIR
+GFLAGS_ROOT_DIR-ADVANCED:INTERNAL=1
+//ADVANCED property for variable: GLOG_INCLUDE_DIR
+GLOG_INCLUDE_DIR-ADVANCED:INTERNAL=1
+//ADVANCED property for variable: GLOG_LIBRARY
+GLOG_LIBRARY-ADVANCED:INTERNAL=1
+//ADVANCED property for variable: GLOG_ROOT_DIR
+GLOG_ROOT_DIR-ADVANCED:INTERNAL=1
 

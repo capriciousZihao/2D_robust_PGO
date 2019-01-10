@@ -5,12 +5,15 @@
  *      Author: yasir
  */
 
-#include "include/RRR.hpp"
+
 
 #include <Eigen/Core>
 #include <Eigen/Geometry>
 #include <sys/time.h>
 #include <assert.h>
+#include <glog/logging.h>
+#include <gflags/gflags.h>
+#include <string>
 
 #include "g2o/types/slam2d/edge_se2.h"
 #include "g2o/types/slam2d/vertex_se2.h"
@@ -19,15 +22,13 @@
 #include "g2o/core/eigen_types.h"
 #include "g2o/solvers/cholmod/linear_solver_cholmod.h"
 #include "g2o/core/optimization_algorithm_levenberg.h"
-
 #include "g2o/core/sparse_optimizer.h"
-
 #include "g2o/core/block_solver.h"
 #include "g2o/core/factory.h"
 #include "g2o/core/optimization_algorithm_gauss_newton.h"
 #include "g2o/solvers/csparse/linear_solver_csparse.h"
 
-#include <string>
+#include "include/RRR.hpp"
 
 
 typedef RRR < G2O_Interface
@@ -61,6 +62,10 @@ using namespace g2o;
  */
 using namespace Eigen;
 
+// DEFINE_bool(
+//     glogShowInfo, 0,
+//     "one parameter that can enable glog show info");
+
 int main(int argc, char** argv)
 {
 
@@ -70,6 +75,25 @@ int main(int argc, char** argv)
 		std::cerr<<argv[0]<<" graph_file clusteringThreshold[default=50]"<<std::endl;
 		return -1;
 	}
+	// initialize google log 
+	FLAGS_logtostderr = 1;
+	// FLAGS_stderrthreshold=google::WARNING;
+	google::InitGoogleLogging(argv[0]);
+	google::ParseCommandLineFlags(&argc, &argv, true);
+    google::InstallFailureSignalHandler();
+    
+    // FLAGS_minloglevel=2;
+	int num_cookies = 9;
+	LOG(INFO) << "INFO Found " << num_cookies << " cookies";
+	LOG(WARNING) << "WARNING Found " << num_cookies << " cookies";
+	LOG(ERROR) << "ERROR Found " << num_cookies << " cookies";
+	// DLOG(INFO) << "debug info";
+	// DLOG(WARNING) << "debug warning l";
+	// DLOG(ERROR) << "debug error";
+	// DLOG(ERROR) << "lower case error";
+	cin.get();
+	// LOG(FATAL) << "FATAL Found " << num_cookies << " cookies";
+	// exit(0);
 
 	// std::cin.get();
 	// assert(5 == 7);

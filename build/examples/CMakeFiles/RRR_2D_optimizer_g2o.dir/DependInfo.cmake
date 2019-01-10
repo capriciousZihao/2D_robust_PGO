@@ -14,6 +14,7 @@ set(CMAKE_CXX_TARGET_INCLUDE_PATH
   "../"
   "/usr/include/eigen3"
   "/usr/local/include/g2o"
+  "/usr/local/include"
   )
 
 # Targets to which this target links.

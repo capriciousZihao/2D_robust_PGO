@@ -6,5 +6,5 @@ CXX_FLAGS =  -std=c++11 -fPIC -ggdb -O2 -g -DNDEBUG
 
 CXX_DEFINES = 
 
-CXX_INCLUDES = -I/usr/include/suitesparse -I/home/zihao/cprogram/code/robustSLAM/robuts_slam_trans_dis_2/2D_robust_PGO -I/usr/include/eigen3 -I/usr/local/include/g2o 
+CXX_INCLUDES = -I/usr/include/suitesparse -I/home/zihao/cprogram/code/robustSLAM/robuts_slam_trans_dis_2/2D_robust_PGO -I/usr/include/eigen3 -I/usr/local/include/g2o -I/usr/local/include 
 

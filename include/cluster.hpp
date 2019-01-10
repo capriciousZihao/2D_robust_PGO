@@ -641,6 +641,7 @@ public:
 
 		start = loop_node_pair.first;
 		end   = (LP_nodes).first;
+		LOG(INFO)<<"start ,end = "<<start<<" "<<end;
 		if(start > end)
 		{
 			// synthesize_odo_edges( end,  start,  OdoInf, Trans1,  cov1, length[0], fultileBit);///
@@ -660,9 +661,14 @@ public:
 			cov1   = result_synthetic_odo.second;
 		}
 		//synthesize the end odometry edges
+		LOG(INFO)<<"trans is "<<Trans1[0]<<" "<<Trans1[1]<<" "<<Trans1[2];
+		// cout<<"start ,end = "<<end<<" "<<start<<endl;
+		// cout<<"trans is "<<Trans1.inverse()[0]<<" "<<Trans1.inverse()[1]<<" "<<Trans1.inverse()[2]<<endl;
+		LOG(INFO)<<" ";
+
 		start = (LP_nodes).second ;
 		end   = loop_node_pair.second;
-
+		LOG(INFO)<<"start ,end = "<<start<<" "<<end;
 		if(start > end)
 		{
 			// synthesize_odo_edges( end,  start,  OdoInf, Trans2,  cov2, length[2], fultileBit);
@@ -682,13 +688,27 @@ public:
 			Trans2 = result_synthetic_odo.first;
 			cov2   = result_synthetic_odo.second;
 		}
+		LOG(INFO)<<"trans is "<<Trans2[0]<<" "<<Trans2[1]<<" "<<Trans2[2]<<endl;
+		// cout<<"start ,end = "<<end<<" "<<start<<endl;
+		// cout<<"trans is "<<Trans2.inverse()[0]<<" "<<Trans2.inverse()[1]<<" "<<Trans2.inverse()[2]<<endl;
+		LOG(INFO)<<" "<<endl;
 		//assign value of 4 parts which from one cycle, the sequence is from part1{lastloop.start > test_loop.start} to part2{test_loop}
 		// to part3 {test_loop.second > last_loop.second} to part4{the inverse of last_loop} 
 		FullInfo[0] = std::pair<g2o::SE2, Matrix3d> (Trans1, cov1);
 		FullInfo[1] = LP_Trans_Covar_Map[(LP_nodes)];
+		LOG(INFO)<<"loop "<<LP_nodes.first<<" "<<LP_nodes.second<<" : ";
+		LOG(INFO)<<LP_Trans_Covar_Map[(LP_nodes)].first[0]<<" "<<LP_Trans_Covar_Map[(LP_nodes)].first[1]<<" "<<LP_Trans_Covar_Map[(LP_nodes)].first[2]<<" ";
+		// cout<<LP_Trans_Covar_Map[(LP_nodes)].first.toIsometry().matrix()<<endl;
+		// cout<<(LP_Trans_Covar_Map[(LP_nodes)].first.inverse()).toIsometry().matrix()<<endl;
+
 		FullInfo[2] = std::pair<g2o::SE2, Matrix3d> (Trans2, cov2);
 		midTrans    = LP_Trans_Covar_Map[loop_node_pair].first;
+		LOG(INFO)<<"loop "<<loop_node_pair.first <<" "<<loop_node_pair.second<<" : "<<LP_Trans_Covar_Map[(LP_nodes)].first[0]<<
+			" "<<LP_Trans_Covar_Map[(LP_nodes)].first[1]<<" "<<LP_Trans_Covar_Map[(LP_nodes)].first[2];
+		LOG(INFO)<<midTrans.toIsometry().matrix()<<endl;
 		midTrans    = midTrans.inverse();
+		// cout<<midTrans.toIsometry().matrix()<<endl;
+		
 		midCov      = LP_Trans_Covar_Map[loop_node_pair].second;
 		FullInfo[3] = std::pair<g2o::SE2, Matrix3d> (midTrans, midCov);
 
@@ -873,6 +893,15 @@ public:
 		std::vector<double> transDisWhole;
 		std::vector<int> consisBitVector;
 
+		// reV =  check_single_loop_odo(*LP_nodes, LP_Trans_Covar_Map, futileBit1, beli);
+		// if(reV.second > upperLimitChi)
+		// {
+		// 	bad_loops_set_self_check.insert(*LP_nodes);
+		// 	cout<<"bad loop cause the self dis is "<<reV.second<<endl;	
+		// 	return;
+		// }
+					// if(reV.second < 80)
+					
 		// find the biggest set
 		int biggestCluster = 0;
 		for(int i=_clustersFound.size()-1; i >= 0; i--)
@@ -898,6 +927,7 @@ public:
 				Pair.second = abs((*LP_nodes).first - _clustersFound[i].positionserial[wholeDis][0]) + 
 							  abs((*LP_nodes).second - _clustersFound[i].positionserial[wholeDis][3]);
 
+				// cout<<" "<<endl<<"first: "<<wholeDis<<" second: "<<Pair.second<<endl;
 				nodeDisVector.push_back(Pair);
 			}	
 			// cout<<"nodeDisVector size "<<nodeDisVector.size()<<endl;	
@@ -920,13 +950,16 @@ public:
 
 				//if the node dis is bigger than it self, do self check, if self check fail, put into bad one and exit, if 
 				//pass self check then do next staff.
-				if(nodeDisVector[wholeDis].first > abs((*LP_nodes).first - (*LP_nodes).second))
+				// cout<<" "<<endl<<"first: "<<nodeDisVector[wholeDis].first<<" second: "<<nodeDisVector[wholeDis].second<<endl;
+				if(nodeDisVector[wholeDis].second > abs((*LP_nodes).first - (*LP_nodes).second))
 				{
 					reV =  check_single_loop_odo(*LP_nodes, LP_Trans_Covar_Map, futileBit1, beli);
-					// cout<<"the self dis is "<<reV.second<<endl;	
+					if(reV.second < 80)
+						cout<<"the self dis is "<<reV.second<<endl;	
 					// if((futileBit1) != 1)
 					// {
-						if((reV.first == 1))
+						// if((reV.first <= upperLimitChi))
+					if((reV.first <= 7.8))
 						{
 							// disVector.push_back(reV.second);
 							// if((*LP_nodes).first == 79)
@@ -942,11 +975,6 @@ public:
 								conflict_cluster.push_back(i);
 								bad_loops_set_self_check.insert(*LP_nodes);
 								return;
-							// }
-							// else
-							// {
-							// 	break;
-							// }
 											
 						}	
 
@@ -961,6 +989,7 @@ public:
 
 				loop_node_pair.first = _clustersFound[i].positionserial[loopIDNearest][0];
 				loop_node_pair.second = _clustersFound[i].positionserial[loopIDNearest][3];
+
 				prepare_to_signle_loop_pair_check(loop_node_pair, *LP_nodes, FullInfo, LP_Trans_Covar_Map, 
 					length, futileBit1, futileBit2);
 
@@ -1034,7 +1063,7 @@ public:
 
 			//if pass chi2 test add this cluster id to the consistent set
 			// if(pass == 1 and bigChiErr< upperLimitChi )//fourNineBelief
-			if(pass == 1 and bigChiErr< utils::chi2_continuous(3,0.95) )
+			if(pass == 1 and bigChiErr< utils::chi2_continuous(3,0.999999995) ) //9999999
 			{
 				cons_cluster_number.push_back(i);
 				chiStatis.push_back(passChi);		
@@ -1922,7 +1951,9 @@ public:
 		// double correlation = 
 		if(length[0] < 0.1)
 			return 0;
-		index_dispersion = sqrt(cov(0,0)*cov(0,0) + cov(1,1)*cov(1,1))/(length[0]);
+		// index_dispersion = sqrt(cov(0,0)*cov(0,0) + cov(1,1)*cov(1,1))/(length[0]);
+		index_dispersion = sqrt(cov(0,0)*cov(0,0) + cov(0,1)*cov(0,1) + cov(1,0)*cov(1,0) + cov(1,1)*cov(1,1))/(length[0]);
+
 		// cout<<"length[0]: "<<length[0]<<" length[3]: "<<length[3]<<" length[4]: "<<length[4]<<endl;
 		// cout<<"sqrt(length[3]*length[3] + length[4]*length[4]): "<<sqrt(length[3]*length[3] + length[4]*length[4])<<endl;
 		if(index_dispersion > snrThres)//3.16 corresponding to 5 dB
@@ -1961,8 +1992,8 @@ public:
 		// double correlation = 
 		if(length < 0.1)
 			return 0;		
-		index_dispersion = sqrt(cov(0,0)*cov(0,0) + cov(1,1)*cov(1,1))/(length);
-
+		// index_dispersion = sqrt(cov(0,0)*cov(0,0) + cov(1,1)*cov(1,1))/(length);
+		index_dispersion = sqrt(cov(0,0)*cov(0,0) + cov(0,1)*cov(0,1) + cov(1,0)*cov(1,0) + cov(1,1)*cov(1,1))/(length);
 		// cout<<"length[0]: "<<length[0]<<" length[3]: "<<length[3]<<" length[4]: "<<length[4]<<endl;
 		// cout<<"sqrt(length[3]*length[3] + length[4]*length[4]): "<<sqrt(length[3]*length[3] + length[4]*length[4])<<endl;
 		if(index_dispersion > snrThres)//3.16 corresponding to 5 dB
@@ -2092,6 +2123,16 @@ public:
 				syntheticOdo1000_dis, 
 				syntheticOdo10000_dis);
 
+
+		prepare_accelerateBySynthetic_adjoint(OdoInf, 
+			syntheticOdo10_trans_varMatrix_adjoint,
+			syntheticOdo100_trans_varMatrix_adjoint,
+			syntheticOdo1000_trans_varMatrix_adjoint,
+			syntheticOdo10000_trans_varMatrix_adjoint,
+			syntheticOdo10_dis_adjoint, syntheticOdo100_dis_adjoint,
+			syntheticOdo1000_dis_adjoint, syntheticOdo10000_dis_adjoint);
+
+
 		ofstream fileStreamr; 
 		
 		for(IntPairSet::const_iterator it = loops.begin(), lend = loops.end();it!=lend;it++)
@@ -2102,243 +2143,298 @@ public:
 				bad_loops_vector.push_back(*it);
 		}		
 
-		prepare_accelerateBySynthetic(OdoInf, 
-				syntheticOdo10_trans_varMatrix_adjoint,
-				syntheticOdo100_trans_varMatrix_adjoint,
-				syntheticOdo1000_trans_varMatrix_adjoint,
-				syntheticOdo10000_trans_varMatrix_adjoint,
-				syntheticOdo10_dis_adjoint, 
-				syntheticOdo100_dis_adjoint,
-				syntheticOdo1000_dis_adjoint, 
-				syntheticOdo10000_dis_adjoint);
+		// prepare_accelerateBySynthetic(OdoInf, 
+		// 		syntheticOdo10_trans_varMatrix_adjoint,
+		// 		syntheticOdo100_trans_varMatrix_adjoint,
+		// 		syntheticOdo1000_trans_varMatrix_adjoint,
+		// 		syntheticOdo10000_trans_varMatrix_adjoint,
+		// 		syntheticOdo10_dis_adjoint, 
+		// 		syntheticOdo100_dis_adjoint,
+		// 		syntheticOdo1000_dis_adjoint, 
+		// 		syntheticOdo10000_dis_adjoint);
 
 
-		fileStreamr.open("loop_serial.txt",ios::trunc);
-		for(int i = 0; i < good_loops_vector.size(); i++)
+		// fileStreamr.open("loop_serial.txt",ios::trunc);
+		// for(int i = 0; i < good_loops_vector.size(); i++)
+		// {
+		// 	fileStreamr<<i<<" "<<good_loops_vector[i].first<<" "<<good_loops_vector[i].second<<" good"<<"\n";
+		// }
+		// for(int i = 0; i < bad_loops_vector.size(); i++)
+		// {
+		// 	fileStreamr<<i+good_loops_vector.size()<<" "<<bad_loops_vector[i].first<<" "<<bad_loops_vector[i].second<<" bad"<<"\n";
+		// }
+		// fileStreamr.close();
+
+		// fileStreamr.open("index_dispersion_transfrom_distance.txt",ios::trunc);
+		// fileStreamr<<"good_loops_size "<<good_loops_vector.size()<<" "<<"bad_loops_size "<<bad_loops_vector.size()<<"\n";
+		// int goodLoopNum = good_loops_vector.size();
+
+		// good_loops_vector.insert( good_loops_vector.end(), bad_loops_vector.begin(), bad_loops_vector.end() );
+
+		// double covX, covY, ucd_two_odo, ucd_two_odo_1, ucd_two_odo_2, ucd_whole, beli = 0.95;
+		// int nodeDis1, nodeDis2, nodeDis3;
+		// for(int i = 0; i < good_loops_vector.size()-1; i++)
+		// {
+		// 	for(int j = i+1; j < good_loops_vector.size(); j++)
+		// 	{
+		// 		std::array<std::array<double, 5>, 5>  length;
+		// 		std::array<std::pair<g2o::SE2, Matrix3d>, 4> FullInfo;
+		// 		std::pair<int, int> loop_node_pair;
+		// 		std::pair<bool, double> reV, reV_adjoint;
+		// 		double  transX_residual, transY_residual, transA_residual, transformDistance, x_cov, y_cov;
+		// 		bool futileBit1, futileBit2, futileBit;
+		// 		Matrix3d backup;
+
+		// 		nodeDis1 = abs(good_loops_vector[i].first - good_loops_vector[j].first);
+		// 		nodeDis2 = abs(good_loops_vector[i].second - good_loops_vector[j].second);
+		// 		nodeDis3 = nodeDis2 + nodeDis1;
+		// 		// cout<<"dis 1 2 3"<<nodeDis1<<" "<<nodeDis2<<" "<<nodeDis3<<endl;
+
+		// 		prepare_to_signle_loop_pair_check(good_loops_vector[i], good_loops_vector[j], FullInfo, LP_Trans_Covar_Map, 
+		// 			length, futileBit1, futileBit2);
+		// 		// calculate the index of dispersion for systhsized segment form two odo segements 1
+		// 		ucd_two_odo   = sqrt(Cov_two_odo(0, 0)*Cov_two_odo(0, 0) + Cov_two_odo(1, 1)*Cov_two_odo(1, 1)
+		// 			+ Cov_two_odo(0,1)*Cov_two_odo(0,1) + Cov_two_odo(1,0)*Cov_two_odo(1,0))/(length[0][0]+length[2][0]);
+
+		// 		// calculate the index of dispersion for odo segement 1
+		// 		x_cov = FullInfo[0].second(0,0);
+		// 		y_cov = FullInfo[0].second(1,1);
+		// 		ucd_two_odo_1 = sqrt(x_cov*x_cov + FullInfo[0].second(0,1)*FullInfo[0].second(0,1) 
+		// 			+ FullInfo[0].second(1,0)*FullInfo[0].second(1,0) + y_cov*y_cov)/(length[0][0]);
+
+		// 		if(length[0][0] == 0)
+		// 		{
+		// 			ucd_two_odo_1 = 0.01;
+		// 		}
+
+		// 		// calculate the index of dispersion for odo segement 2
+		// 		x_cov = FullInfo[2].second(0,0);
+		// 		y_cov = FullInfo[2].second(1,1);
+		// 		ucd_two_odo_2 = sqrt(x_cov*x_cov + FullInfo[0].second(0,1)*FullInfo[0].second(0,1) 
+		// 			+ FullInfo[0].second(1,0)*FullInfo[0].second(1,0) + y_cov*y_cov)/(length[2][0]);
+
+		// 		if(length[2][0] == 0)
+		// 		{
+		// 			ucd_two_odo_2 = 0.01;
+		// 		}
+
+		// 		// cout<<"start loop "<<good_loops_vector[i].first<<" "<<good_loops_vector[i].second<<endl;
+		// 		// cout<<"end   loop "<<good_loops_vector[j].first<<" "<<good_loops_vector[j].second<<endl;
+		// 		if(std::isnan(ucd_two_odo_2))
+		// 		{
+
+		// 			cout<<"nan, the length is "<<length[2][0]<<endl;\
+		// 			cin.get();
+		// 		}
+
+		// 		reV = check_single_loop_inter_varying_belief(FullInfo, covX, covY, displayCov, transX_residual, 
+		// 			transY_residual, transA_residual, length[4][0], futileBit, beli);
+		// 		backup = displayCov;
+		// 		// calculate the index of dispersion for the whole loop
+		// 		ucd_whole = index_dispersion;
+
+		// 		prepare_to_signle_loop_pair_check_adjoint(good_loops_vector[i], good_loops_vector[j], FullInfo, LP_Trans_Covar_Map, 
+		// 			length, futileBit1, futileBit2);
+
+		// 		reV_adjoint = check_single_loop_inter_varying_belief_adjoint(FullInfo, covX, covY, displayCov, transX_residual, 
+		// 			transY_residual, transA_residual, length[4][0], futileBit, beli);
+
+		// 		// if(i < goodLoopNum and j >= goodLoopNum and (reV_adjoint.second < 8 ))  //or reV_adjoint.second <= 8
+		// 		// // if(reV.second > reV_adjoint.second and (reV.second >8 and reV_adjoint.second <= 8))
+		// 		// {
+		// 		// 	cout<<"i: "<<i<<" j: "<<j<<endl;
+		// 		// 	cout<<"original dis is smaller, "<<reV.second<<" "<<reV_adjoint.second<<endl;
+		// 		// 	cout<<"cov_original"<<endl<<backup<<endl<<"adjoint: "<<endl<<displayCov<<endl;
+		// 		// 	cin.get();
+		// 		// }
+
+		// 		// fileStreamr<<" "<< ucd_two_odo_1<<" "<<ucd_two_odo_2<<" "
+		// 		// 	<<ucd_two_odo<<" "<<ucd_whole<<" "<<reV.second <<" "<<reV_adjoint.second<<" "<<nodeDis1<<" "<<
+		// 		// 	nodeDis2<<" "<<nodeDis3<<"\n";
+
+		// 		fileStreamr<<"i "<<i<<" j "<<j<<" "<< ucd_two_odo_1<<" "<<ucd_two_odo_2<<" "
+		// 			<<ucd_two_odo<<" "<<ucd_whole<<" "<<reV.second <<" "<<reV_adjoint.second<<" "<<nodeDis1<<" "<<
+		// 			nodeDis2<<" "<<nodeDis3<<"\n";
+		// 	}
+		// }
+		// fileStreamr.close();
+
+		// // // nodeID   trajectory_distace   tranform_distance   variance_x variance_y
+		// // fileStreamr.open("indexVStrajectory.txt",ios::trunc);
+		// // for(int i =0; i <= OdoInf.size(); i++)
+		// // // for(int i = OdoInf.size(); i <= OdoInf.size(); i++)
+		// // {
+		// // 	int start, end;
+		// // 	std::pair<g2o::SE2, Matrix3d> result_synthetic_odo;
+		// // 	std::array<double, 5>  length;
+		// // 	bool  fultileBit;
+		// // 	double trans_X, trans_Y, tran_XY, varX, varY, varXY,eigen1, eigen2, eigen_XY, covxy_1, covxy_2, var_cov;
+		// // 	// for(int i = 0; i*10+10 <= OdoInf.size(); i++ )
+		// // 	{
+		// // 		end   = i;
+		// // 		synthesize_odo_edges( 0, end, OdoInf, result_synthetic_odo.first, 
+		// // 			result_synthetic_odo.second, length, fultileBit);
+		// // 		trans_X = result_synthetic_odo.first[0];
+		// // 		trans_Y = result_synthetic_odo.first[1];
+		// // 		tran_XY = sqrt(trans_X*trans_X + trans_Y*trans_Y);
+		// // 		varX    = result_synthetic_odo.second(0,0);
+		// // 		varY    = result_synthetic_odo.second(1,1);
+		// // 		varXY   = sqrt(varX*varX + varY*varY);
+		// // 		covxy_1 = result_synthetic_odo.second(0,1);
+		// // 		covxy_2 = result_synthetic_odo.second(1,0);
+		// // 		var_cov   = sqrt(varX*varX + varY*varY + covxy_1*covxy_1 + covxy_2*covxy_2);
+		// // 		double determinent = result_synthetic_odo.second.determinant();
+
+		// // 		EigenSolver<MatrixXd> es(result_synthetic_odo.second.block(0,0,2,2));
+		// // 		// cout << "The eigenvalues of A are:" << endl << es.eigenvalues() << endl;
+		// // 		eigen1 = es.eigenvalues()[0].real();
+		// // 		eigen2 = es.eigenvalues()[1].real();
+		// // 		eigen_XY = sqrt(eigen1*eigen1 + eigen2*eigen2);
+		// // 		// eigen_XY = 0;
+
+		// // 		cout<<endl<<i<<" var matrix "<<endl<<result_synthetic_odo.second<<endl;
+				
+		// // 		if(fultileBit == 1)
+		// // 		{
+		// // 			futilePairVector.push_back(std::pair<int,int>(start,end));
+		// // 			// cout<<"length:"<<length[0]<<" "<<length[1]<<" "<<length[2]<<" "<<length[3]<<" "<<length[4]<<" "<<length[5]<<" "<<length[6]<<" "<<endl;
+		// // 			// cout<<"futile from "<<start<<" to "<<end<<endl;
+		// // 		}		
+		// // 		fileStreamr<<"vertexID "<<i<<" "<<length[0]<<" "<<tran_XY<<" "<<varXY<<" "<<var_cov<<" "<<eigen_XY<<" "<<determinent<<"\n";	
+		// // 	}			
+		// // }
+		// // cout<<"please check the covariance of each node sequence"<<endl;
+		// // cin.get();
+		// // fileStreamr.close();
+
+		// // nodeID   trajectory_distace   tranform_distance   variance_x variance_y
+		// fileStreamr.open("indexVStrajectory_accelerated_bovisa04.txt",ios::trunc);
+		// for(int i =0; i <= OdoInf.size(); i++)
+		// {
+		// 	int start, end;
+		// 	std::pair<g2o::SE2, Matrix3d> result_synthetic_odo;
+		// 	std::array<double, 5>  length;
+		// 	bool  fultileBit;
+		// 	double trans_X, trans_Y, tran_XY, varX, varY, varXY, covxy_1, covxy_2, var_cov;
+		// 	// for(int i = 0; i*10+10 <= OdoInf.size(); i++ )
+		// 	{
+		// 		end   = i;
+		// 		accelerated_synthetic_odo(0,  i, OdoInf, 
+		// 				result_synthetic_odo,  length, fultileBit);
+		// 		// cout<<"length[0]:"<<length[0]<<endl;
+		// 		// cin.get();
+
+		// 		trans_X = result_synthetic_odo.first[0];
+		// 		trans_Y = result_synthetic_odo.first[1];
+		// 		tran_XY = sqrt(trans_X*trans_X + trans_Y*trans_Y);
+		// 		varX    = result_synthetic_odo.second(0,0);
+		// 		varY    = result_synthetic_odo.second(1,1);
+		// 		varXY   = sqrt(varX*varX + varY*varY);
+		// 		covxy_1 = result_synthetic_odo.second(0,1);
+		// 		covxy_2 = result_synthetic_odo.second(1,0);
+		// 		var_cov   = sqrt(varX*varX + varY*varY + covxy_1*covxy_1 + covxy_2*covxy_2);				
+		// 		double determinent = result_synthetic_odo.second.determinant();
+		// 		if(fultileBit == 1)
+		// 		{
+		// 			futilePairVector.push_back(std::pair<int,int>(start,end));
+		// 			// cout<<"length:"<<length[0]<<" "<<length[1]<<" "<<length[2]<<" "<<length[3]<<" "<<length[4]<<" "<<length[5]<<" "<<length[6]<<" "<<endl;
+		// 			// cout<<"futile from "<<start<<" to "<<end<<endl;
+		// 		}		
+		// 		fileStreamr<<"vertexID "<<i<<" "<<length[0]<<" "<<tran_XY<<" "<<varXY<<" "<<var_cov<<" "<<determinent<<"\n";	
+		// 		// cout<<"length[0]:"<<length[0]<<endl;
+		// 		// cin.get();
+		// 	}			
+		// }
+		// fileStreamr.close();	
+
+		
+		// // nodeID   trajectory_distace   tranform_distance   variance_x variance_y
+		// fileStreamr.open("indexVStrajectory_adjoint.txt",ios::trunc);
+		// for(int i =0; i <= OdoInf.size(); i++)
+		// // for(int i = OdoInf.size(); i <= OdoInf.size(); i++)
+		// {
+		// 	int start, end;
+		// 	std::pair<g2o::SE2, Matrix3d> result_synthetic_odo;
+		// 	std::array<double, 5>  length;
+		// 	bool  fultileBit;
+		// 	double trans_X, trans_Y, tran_XY, varX, varY, varXY,eigen1, eigen2, eigen_XY, covxy_1, covxy_2, var_cov;
+		// 	// for(int i = 0; i*10+10 <= OdoInf.size(); i++ )
+		// 	{
+		// 		end   = i;
+		// 		synthesize_odo_edges_adjoint( 0, end, OdoInf, result_synthetic_odo.first, 
+		// 			result_synthetic_odo.second, length, fultileBit);
+		// 		trans_X = result_synthetic_odo.first[0];
+		// 		trans_Y = result_synthetic_odo.first[1];
+		// 		tran_XY = sqrt(trans_X*trans_X + trans_Y*trans_Y);
+		// 		varX    = result_synthetic_odo.second(0,0);
+		// 		varY    = result_synthetic_odo.second(1,1);
+		// 		varXY   = sqrt(varX*varX + varY*varY);
+		// 		covxy_1 = result_synthetic_odo.second(0,1);
+		// 		covxy_2 = result_synthetic_odo.second(1,0);
+		// 		var_cov   = sqrt(varX*varX + varY*varY + covxy_1*covxy_1 + covxy_2*covxy_2);
+		// 		double determinent = result_synthetic_odo.second.determinant();
+
+		// 		EigenSolver<MatrixXd> es(result_synthetic_odo.second.block(0,0,2,2));
+		// 		// cout << "The eigenvalues of A are:" << endl << es.eigenvalues() << endl;
+		// 		eigen1 = es.eigenvalues()[0].real();
+		// 		eigen2 = es.eigenvalues()[1].real();
+		// 		eigen_XY = sqrt(eigen1*eigen1 + eigen2*eigen2);
+		// 		// eigen_XY = 0;
+		// 		cout<<endl<<i<<" var adjoint matrix "<<endl<<result_synthetic_odo.second<<endl;
+				
+		// 		if(fultileBit == 1)
+		// 		{
+		// 			futilePairVector.push_back(std::pair<int,int>(start,end));
+		// 			// cout<<"length:"<<length[0]<<" "<<length[1]<<" "<<length[2]<<" "<<length[3]<<" "<<length[4]<<" "<<length[5]<<" "<<length[6]<<" "<<endl;
+		// 			// cout<<"futile from "<<start<<" to "<<end<<endl;
+		// 		}		
+		// 		fileStreamr<<"vertexID "<<i<<" "<<length[0]<<" "<<tran_XY<<" "<<varXY<<" "<<var_cov<<" "<<eigen_XY<<" "<<determinent<<"\n";	
+		// 	}			
+		// }
+		// cout<<"please check the covariance matrix produced by adjoint method "<<endl;
+		// cin.get();
+		// fileStreamr.close();
+
+
+
+		// second_prepare_accelerated_synthetic_odo(OdoInf, syntheticOdoAccumulate_trans_varMatrix,
+		// syntheticOdoAccumulate_dis);
+
+		if(1)
 		{
-			fileStreamr<<i<<" "<<good_loops_vector[i].first<<" "<<good_loops_vector[i].second<<" good"<<"\n";
-		}
-		for(int i = 0; i < bad_loops_vector.size(); i++)
-		{
-			fileStreamr<<i+good_loops_vector.size()<<" "<<bad_loops_vector[i].first<<" "<<bad_loops_vector[i].second<<" bad"<<"\n";
-		}
-		fileStreamr.close();
+			double covX, covY, ucd_two_odo, ucd_two_odo_1, ucd_two_odo_2, ucd_whole, beli = 0.95;
+			std::array<std::array<double, 5>, 5>  length;
+			std::array<std::pair<g2o::SE2, Matrix3d>, 4> FullInfo;
+			std::pair<int, int> loop_node_pair;
+			std::pair<bool, double> reV, reV_adjoint;
+			double  transX_residual, transY_residual, transA_residual, transformDistance, x_cov, y_cov;
+			bool futileBit1, futileBit2, futileBit;
+			Matrix3d backup;
 
-		fileStreamr.open("index_dispersion_transfrom_distance.txt",ios::trunc);
-		fileStreamr<<"good_loops_size "<<good_loops_vector.size()<<" "<<"bad_loops_size "<<bad_loops_vector.size()<<"\n";
-		int goodLoopNum = good_loops_vector.size();
+			std::pair<int,int> loop1(10,975), loop2(35,667), loop3(35,667);
+// loop 4 980 in cluster 0 has error 0.0658927
+// loop 10 975 in cluster 0 has error 0.297352
+// loop 35 667 in cluster 1 has error 0.978617
 
-		good_loops_vector.insert( good_loops_vector.end(), bad_loops_vector.begin(), bad_loops_vector.end() );
 
-		double covX, covY, ucd_two_odo, ucd_two_odo_1, ucd_two_odo_2, ucd_whole, beli = 0.95;
-		int nodeDis1, nodeDis2, nodeDis3;
-		for(int i = 0; i < good_loops_vector.size()-1; i++)
-		{
-			for(int j = i+1; j < good_loops_vector.size(); j++)
-			{
-				std::array<std::array<double, 5>, 5>  length;
-				std::array<std::pair<g2o::SE2, Matrix3d>, 4> FullInfo;
-				std::pair<int, int> loop_node_pair;
-				std::pair<bool, double> reV, reV_adjoint;
-				double  transX_residual, transY_residual, transA_residual, transformDistance, x_cov, y_cov;
-				bool futileBit1, futileBit2, futileBit;
-				Matrix3d backup;
+			reV =  check_single_loop_odo(loop3, LP_Trans_Covar_Map, futileBit1, beli);
+			// if(reV.second < 80)
+				cout<<"the self dis is "<<reV.second<<endl;	
 
-				nodeDis1 = abs(good_loops_vector[i].first - good_loops_vector[j].first);
-				nodeDis2 = abs(good_loops_vector[i].second - good_loops_vector[j].second);
-				nodeDis3 = nodeDis2 + nodeDis1;
-				// cout<<"dis 1 2 3"<<nodeDis1<<" "<<nodeDis2<<" "<<nodeDis3<<endl;
+			prepare_to_signle_loop_pair_check(loop1, loop2, FullInfo, LP_Trans_Covar_Map, 
+				length, futileBit1, futileBit2);
+			cin.get();
+			reV = check_single_loop_inter_varying_belief(FullInfo, covX, covY, displayCov, transX_residual, 
+				transY_residual, transA_residual, length[4][0], futileBit, beli);
 
-				prepare_to_signle_loop_pair_check(good_loops_vector[i], good_loops_vector[j], FullInfo, LP_Trans_Covar_Map, 
-					length, futileBit1, futileBit2);
-				// calculate the index of dispersion for systhsized segment form two odo segements 1
-				ucd_two_odo   = sqrt(Cov_two_odo(0, 0)*Cov_two_odo(0, 0) + Cov_two_odo(1, 1)*Cov_two_odo(1, 1))/(length[0][0]+length[2][0]);
-
-				// calculate the index of dispersion for odo segement 1
-				x_cov = FullInfo[0].second(0,0);
-				y_cov = FullInfo[0].second(1,1);
-				ucd_two_odo_1 = sqrt(x_cov*x_cov + y_cov*y_cov)/(length[0][0]);
-
-				if(length[0][0] == 0)
-				{
-					ucd_two_odo_1 = 0.01;
-				}
-
-				// calculate the index of dispersion for odo segement 2
-				x_cov = FullInfo[2].second(0,0);
-				y_cov = FullInfo[2].second(1,1);
-				ucd_two_odo_2 = sqrt(x_cov*x_cov + y_cov*y_cov)/(length[2][0]);
-
-				if(length[2][0] == 0)
-				{
-					ucd_two_odo_2 = 0.01;
-				}
-
-				// cout<<"start loop "<<good_loops_vector[i].first<<" "<<good_loops_vector[i].second<<endl;
-				// cout<<"end   loop "<<good_loops_vector[j].first<<" "<<good_loops_vector[j].second<<endl;
-				if(std::isnan(ucd_two_odo_2))
-				{
-
-					cout<<"nan, the length is "<<length[2][0]<<endl;\
-					cin.get();
-				}
-
-				reV = check_single_loop_inter_varying_belief(FullInfo, covX, covY, displayCov, transX_residual, 
-					transY_residual, transA_residual, length[4][0], futileBit, beli);
-				backup = displayCov;
-				// calculate the index of dispersion for the whole loop
-				ucd_whole = index_dispersion;
-
-				prepare_to_signle_loop_pair_check_adjoint(good_loops_vector[i], good_loops_vector[j], FullInfo, LP_Trans_Covar_Map, 
+							prepare_to_signle_loop_pair_check_adjoint(loop1, loop2, FullInfo, LP_Trans_Covar_Map, 
 					length, futileBit1, futileBit2);
 
 				reV_adjoint = check_single_loop_inter_varying_belief_adjoint(FullInfo, covX, covY, displayCov, transX_residual, 
 					transY_residual, transA_residual, length[4][0], futileBit, beli);
-
-				// if(i < goodLoopNum and j >= goodLoopNum and (reV_adjoint.second < 8 ))  //or reV_adjoint.second <= 8
-				// // if(reV.second > reV_adjoint.second and (reV.second >8 and reV_adjoint.second <= 8))
-				// {
-				// 	cout<<"i: "<<i<<" j: "<<j<<endl;
-				// 	cout<<"original dis is smaller, "<<reV.second<<" "<<reV_adjoint.second<<endl;
-				// 	cout<<"cov_original"<<endl<<backup<<endl<<"adjoint: "<<endl<<displayCov<<endl;
-				// 	cin.get();
-				// }
-
-				fileStreamr<<"i "<<i<<" j "<<j<<" "<< ucd_two_odo_1<<" "<<ucd_two_odo_2<<" "
-					<<ucd_two_odo<<" "<<ucd_whole<<" "<<reV.second <<" "<<reV_adjoint.second<<" "<<nodeDis1<<" "<<
-					nodeDis2<<" "<<nodeDis3<<"\n";
-			}
+				cout<<reV_adjoint.second<<endl;
 		}
-		fileStreamr.close();
-
-		// nodeID   trajectory_distace   tranform_distance   variance_x variance_y
-		fileStreamr.open("indexVStrajectory.txt",ios::trunc);
-		for(int i =0; i <= OdoInf.size(); i++)
-		// for(int i = OdoInf.size(); i <= OdoInf.size(); i++)
-		{
-			int start, end;
-			std::pair<g2o::SE2, Matrix3d> result_synthetic_odo;
-			std::array<double, 5>  length;
-			bool  fultileBit;
-			double trans_X, trans_Y, tran_XY, varX, varY, varXY,eigen1, eigen2, eigen_XY;
-			// for(int i = 0; i*10+10 <= OdoInf.size(); i++ )
-			{
-				end   = i;
-				synthesize_odo_edges( 0, end, OdoInf, result_synthetic_odo.first, 
-					result_synthetic_odo.second, length, fultileBit);
-				trans_X = result_synthetic_odo.first[0];
-				trans_Y = result_synthetic_odo.first[1];
-				tran_XY = sqrt(trans_X*trans_X + trans_Y*trans_Y);
-				varX    = result_synthetic_odo.second(0,0);
-				varY    = result_synthetic_odo.second(1,1);
-				varXY   = sqrt(varX*varX + varY*varY);
-
-				EigenSolver<MatrixXd> es(result_synthetic_odo.second.block(0,0,2,2));
-				// cout << "The eigenvalues of A are:" << endl << es.eigenvalues() << endl;
-				eigen1 = es.eigenvalues()[0].real();
-				eigen2 = es.eigenvalues()[1].real();
-				eigen_XY = sqrt(eigen1*eigen1 + eigen2*eigen2);
-				// eigen_XY = 0;
-				
-				if(fultileBit == 1)
-				{
-					futilePairVector.push_back(std::pair<int,int>(start,end));
-					// cout<<"length:"<<length[0]<<" "<<length[1]<<" "<<length[2]<<" "<<length[3]<<" "<<length[4]<<" "<<length[5]<<" "<<length[6]<<" "<<endl;
-					// cout<<"futile from "<<start<<" to "<<end<<endl;
-				}		
-				fileStreamr<<"vertexID "<<i<<" "<<length[0]<<" "<<tran_XY<<" "<<varXY<<" "<<eigen_XY<<"\n";	
-			}			
-		}
-		// cin.get();
-		fileStreamr.close();
-
-		// nodeID   trajectory_distace   tranform_distance   variance_x variance_y
-		fileStreamr.open("indexVStrajectory_accelerated_bovisa04.txt",ios::trunc);
-		for(int i =0; i <= OdoInf.size(); i++)
-		{
-			int start, end;
-			std::pair<g2o::SE2, Matrix3d> result_synthetic_odo;
-			std::array<double, 5>  length;
-			bool  fultileBit;
-			double trans_X, trans_Y, tran_XY, varX, varY, varXY;
-			// for(int i = 0; i*10+10 <= OdoInf.size(); i++ )
-			{
-				end   = i;
-				accelerated_synthetic_odo(0,  i, OdoInf, 
-						result_synthetic_odo,  length, fultileBit);
-				// cout<<"length[0]:"<<length[0]<<endl;
-				// cin.get();
-
-				trans_X = result_synthetic_odo.first[0];
-				trans_Y = result_synthetic_odo.first[1];
-				tran_XY = sqrt(trans_X*trans_X + trans_Y*trans_Y);
-				varX    = result_synthetic_odo.second(0,0);
-				varY    = result_synthetic_odo.second(1,1);
-				varXY   = sqrt(varX*varX + varY*varY);
-				double determinent = result_synthetic_odo.second.determinant();
-				if(fultileBit == 1)
-				{
-					futilePairVector.push_back(std::pair<int,int>(start,end));
-					// cout<<"length:"<<length[0]<<" "<<length[1]<<" "<<length[2]<<" "<<length[3]<<" "<<length[4]<<" "<<length[5]<<" "<<length[6]<<" "<<endl;
-					// cout<<"futile from "<<start<<" to "<<end<<endl;
-				}		
-				fileStreamr<<"vertexID "<<i<<" "<<length[0]<<" "<<tran_XY<<" "<<varXY<<" "<<determinent<<"\n";	
-				// cout<<"length[0]:"<<length[0]<<endl;
-				// cin.get();
-			}			
-		}
-		fileStreamr.close();	
-
-		
-		// nodeID   trajectory_distace   tranform_distance   variance_x variance_y
-		fileStreamr.open("indexVStrajectory_adjoint.txt",ios::trunc);
-		for(int i =0; i <= OdoInf.size(); i++)
-		// for(int i = OdoInf.size(); i <= OdoInf.size(); i++)
-		{
-			int start, end;
-			std::pair<g2o::SE2, Matrix3d> result_synthetic_odo;
-			std::array<double, 5>  length;
-			bool  fultileBit;
-			double trans_X, trans_Y, tran_XY, varX, varY, varXY,eigen1, eigen2, eigen_XY;
-			// for(int i = 0; i*10+10 <= OdoInf.size(); i++ )
-			{
-				end   = i;
-				synthesize_odo_edges_adjoint( 0, end, OdoInf, result_synthetic_odo.first, 
-					result_synthetic_odo.second, length, fultileBit);
-				trans_X = result_synthetic_odo.first[0];
-				trans_Y = result_synthetic_odo.first[1];
-				tran_XY = sqrt(trans_X*trans_X + trans_Y*trans_Y);
-				varX    = result_synthetic_odo.second(0,0);
-				varY    = result_synthetic_odo.second(1,1);
-				varXY   = sqrt(varX*varX + varY*varY);
-				double determinent = result_synthetic_odo.second.determinant();
-
-				EigenSolver<MatrixXd> es(result_synthetic_odo.second.block(0,0,2,2));
-				// cout << "The eigenvalues of A are:" << endl << es.eigenvalues() << endl;
-				eigen1 = es.eigenvalues()[0].real();
-				eigen2 = es.eigenvalues()[1].real();
-				eigen_XY = sqrt(eigen1*eigen1 + eigen2*eigen2);
-				// eigen_XY = 0;
-
-				
-				if(fultileBit == 1)
-				{
-					futilePairVector.push_back(std::pair<int,int>(start,end));
-					// cout<<"length:"<<length[0]<<" "<<length[1]<<" "<<length[2]<<" "<<length[3]<<" "<<length[4]<<" "<<length[5]<<" "<<length[6]<<" "<<endl;
-					// cout<<"futile from "<<start<<" to "<<end<<endl;
-				}		
-				fileStreamr<<"vertexID "<<i<<" "<<length[0]<<" "<<tran_XY<<" "<<varXY<<" "<<eigen_XY<<" "<<determinent<<"\n";	
-			}			
-		}
-		// cin.get();
-		fileStreamr.close();
-
-
-		// cout<<"finish"<<endl;
-		// cin.get()	;
-		// exit(0);
-		// second_prepare_accelerated_synthetic_odo(OdoInf, syntheticOdoAccumulate_trans_varMatrix,
-		// syntheticOdoAccumulate_dis);
+		cin.get();
 
 
 		if(loops.empty())
@@ -2401,6 +2497,22 @@ public:
 				double strictBelief = 0.95;
 				find_cons_cluster_varying_belief_all_cluster( it,  _clustersFound,  cons_cluster_number, conflict_cluster_set,
 						uncertain_set, LP_Trans_Covar_Map, VertexInf, 1 , chiStatis,  futileBit, strictBelief);
+
+				bool bad  = 0;
+				for(int i = 0; i <bad_loops_vector.size(); i++)
+				{
+					if(bad_loops_vector[i].first == start and bad_loops_vector[i].second == end)
+					{
+						bad = 1;
+						DLOG(INFO)<<"loop "<<start<<" "<<end<<" is bad "<<endl;
+						break;
+					}
+				}
+				if(bad == 0)
+				{
+					cout<<"loop "<<start<<" "<<end<<" is good ***********************8 "<<endl;
+				}
+
 				if(bad_loops_set_self_check.find(*it) != bad_loops_set_self_check.end())
 				{
 					loopToClusterIDMap[*it] = -3;
@@ -2545,7 +2657,7 @@ public:
 					
 
 					_clustersFound[consCluster_serialNum].positionserial.push_back(fullLoopInfo);
-					// cout<<"the final cluster selected is "<<consCluster_serialNum<<endl;
+					cout<<"the final cluster selected is "<<consCluster_serialNum<<endl;
 
 					if(consCluster_serialNum > _clustersFound.size())
 					{
@@ -2596,14 +2708,14 @@ public:
 				updateConflictPairSet(conflict_cluster_set,  consCluster_serialNum, uncertain_set, 0);
 				updateConflictCause(consCluster_serialNum, conflict_cause)	;
 						
-			}
+			} 
  
-			// int sf = 698, ef = 870;
+			// int sf = 387, ef = 515;
 			// if((start == sf  and end == ef) or (end == sf  and  start == ef))
 			// {
 			// 		if(node_distance_cons.size() > 1)
 			// 			cout<<"candidate cluster "<<node_distance_cons[0].first<<" has smallest node dis "<<node_distance_cons[0].second<<endl;
-			// 		std::cout << "start == "<<sf<<" end == "<<ef<<", Press \'Return\' to end." << std::endl;
+			// 		std::cout << "start == "<<start<<" end == "<<end<<", Press \'Return\' to end." << std::endl;
 			// 		cout<<"consCluster_serialNum: "<<consCluster_serialNum<<endl;
 			// 		std::cin.get();					
 			// }
@@ -2669,7 +2781,7 @@ public:
 		for(size_t i=0; i< _clustersFound.size(); i++)
 		{
 			cluster_id = clusterSizeVector[i].first;
-			fileStreamr<<"clusterID "<<cluster_id<<" "<<clusterSizeVector[i].second<<" "<<i+1<<"\n";
+			// fileStreamr<<"clusterID "<<cluster_id<<" "<<clusterSizeVector[i].second<<" "<<i+1<<"\n";
 			bool mixed = 0, initialized = 0, privious_state;
 			for(std::vector<std::array<double,6>>::const_iterator itVertex = _clustersFound[cluster_id].positionserial.begin(), 
 				lendVertex = _clustersFound[cluster_id].positionserial.end();itVertex!=lendVertex;itVertex++)
@@ -2764,6 +2876,10 @@ public:
 			}	
 		}
 		fileStreamr.close();	
+
+		cout<<"finish cluster"<<endl;
+		cin.get()	;
+		// exit(0);
 #if 0
 		if(0)
 		{
@@ -4491,6 +4607,8 @@ public:
 			mid_vector3[1] = startNodeInfo[3];
 			mid_vector3[2] = startNodeInfo[4];
 			Trans.fromVector(mid_vector3);
+			// cout<<"node "<<start<<" "<<Trans[0]<<" "<<Trans[1]<<" "<<Trans[2]<<endl;
+		
 
 			length[0] = sqrt(Trans[0]*Trans[0]+Trans[1]*Trans[1]);
 			length[1] = abs(Trans[0]);
@@ -4519,6 +4637,9 @@ public:
 
 				mid_vector3[0] = OdoInf[j][2]; mid_vector3[1] = OdoInf[j][3]; mid_vector3[2] = OdoInf[j][4];
 				edge2.fromVector(mid_vector3);
+
+				// cout<<"node "<<j<<" "<<edge2[0]<<" "<<edge2[1]<<" "<<edge2[2]<<endl;
+
 				length[0] = length[0] + sqrt(edge2[0]*edge2[0]+edge2[1]*edge2[1]);
 				length[1] = length[1]+abs(edge2[0]);
 				length[2] = length[2]+abs(edge2[1]);
@@ -4584,6 +4705,7 @@ public:
 				}	
 
 				Trans *= edge2;//update transform
+				// cout<<"trans synthesis: "<<j<<" "<<Trans[0]<<" "<<Trans[1]<<" "<<Trans[2]<<endl;
 
 				double xc = cos(thetaa)*xb - sin(thetaa)*yb + xa;
 				double yc = sin(thetaa)*xb + cos(thetaa)*yb + ya;
@@ -4603,7 +4725,6 @@ public:
 				    	thetac -= 2*const_pi;
 				  	if (thetac < -const_pi)
 				    	thetac += 2*const_pi;
-
 			  	}
 
 
@@ -4635,6 +4756,7 @@ public:
 						return;
 				}
 			}
+
 			fultileBit = judgeVarianceAndDistance_Small(length, cov);
 
 			if(OdoInf[j-1][1] != end)
@@ -4749,7 +4871,6 @@ public:
 
 				// cout<<"cov"<<endl;
 				// cout<<cov<<endl;
-
 				// cout<<"m2"<<endl;
 				// cout<<m2<<endl;
 
@@ -4775,7 +4896,11 @@ public:
 
 				// cout<<"m_m"<<endl;
 				// cout<<m_m<<endl;	
-				double norml2_cov = sqrt(m_m(0, 0)*m_m(0, 0)+m_m(1, 1)*m_m(1, 1));
+
+				// m_m = cov.transpose();
+				// cout<<"m_m: "<<endl<<m_m<<endl;	
+				// (cov*m_m).trace
+				// double norml2_cov = sqrt(m_m(0, 0)*m_m(0, 0)+m_m(1, 1)*m_m(1, 1));
 				// cout<<"covx "<<m_m(0, 0) <<" covy "<<m_m(1, 1)<<" norm_cov "<<norml2_cov<<" length "<<  length[0]<<" angle_cov "<<m_m(2, 2) <<endl;	
 
 				length[3] = cov(0,0);
@@ -4799,10 +4924,15 @@ public:
 	void get_adjoint(Matrix3d & adj, const g2o::SE2 & trans)
 	{
 		adj.block(0,0,2,2) = trans.rotation().toRotationMatrix();
+		// cout<<"trans: "<<trans[0]<<" "<<trans[1]<<" "<<trans[2]<<endl;
+		// cout<<"adj.block(0,0,2,2)"<<endl<<adj.block(0,0,2,2)<<endl;
 		adj(2,0) = 0;
 		adj(2,1) = 0;
+		adj(0,2) = trans[1];
 		adj(1,2) = -trans[0];
 		adj(2,2) = 1;
+		// cout<<"adj"<<endl<<adj<<endl;
+		// cin.get();
 
 	}
 	void Jacobian_4_edge_propagate(g2o::SE2 & TransA, g2o::SE2 & TransB, Matrix3d & J1, Matrix3d & J2)
@@ -5023,20 +5153,21 @@ public:
 		std::pair<bool, double> returnV;
 
 
-		loop1        =  transSequence_cluster_inter[0].first;
+		loop1   =  transSequence_cluster_inter[0].first;
 		Cov1    =  transSequence_cluster_inter[0].second;
 
 
-		// check two odo segments futile state
-		loop2   =  (transSequence_cluster_inter[2].first).inverse();
-		Cov2    =  transSequence_cluster_inter[2].second;
+		// // check two odo segments futile state
+		// loop2   =  (transSequence_cluster_inter[2].first).inverse();
+		// Cov2    =  transSequence_cluster_inter[2].second;
 
-		Jacobian_4_edge_propagate(loop1, loop2, J1, J2);//generate jacobian 
-		covariance_propagate(Cov1, Cov2, J1, J2, Cov_midd);// update covariance from two covs and two Jacobians
-		Cov_two_odo = Cov_midd;
+		// Jacobian_4_edge_propagate(loop1, loop2, J1, J2);//generate jacobian 
+		// covariance_propagate(Cov1, Cov2, J1, J2, Cov_midd);// update covariance from two covs and two Jacobians
+		// Cov_two_odo = Cov_midd;
 
-		loop_two_odo = loop1 * loop2;//update transform
+		// loop_two_odo = loop1 * loop2;//update transform
 
+		// cout<<"0: "<<loop1[0]<<" "<<loop1[1]<<" "<<loop1[2]<<endl;
 		for(int i = 1; i<4; i++)
 		{
 			loop2   =  transSequence_cluster_inter[i].first;
@@ -5050,6 +5181,8 @@ public:
 			// cout<<" "<<endl;
 
 			loop1 = loop1 * loop2;//update transform
+			// cout<<i<<": "<<loop1[0]<<" "<<loop1[1]<<" "<<loop1[2]<<endl;
+			// cout<< "    "<<loop2[0]<<" "<<loop2[1]<<" "<<loop2[2]<<endl;
 		}
 		// exit(0);
 
@@ -5066,26 +5199,151 @@ public:
 		// }
 		// else
 		// 	futileb = 0;
-		futileb = judgeVarianceAndDistance_Small(length, Cov1);
+
 
 		displayCov = Cov1;
 		covX = Cov1(0, 0);
 		covY = Cov1(1, 1);
 		// T = transform_interator.toVector();
+		LOG(INFO)<<"COV"<<Cov1;
 		Matrix3d mmmm =  Cov1.inverse();
+		LOG(INFO)<<"COV"<<Cov1;
+		LOG(INFO)<<"COV"<<mmmm;
 		T(0)= loop1[0];
 		T(1) = loop1[1];
 		T(2) = loop1[2];	
+
+		LOG(INFO)<<"T "<<T;
+		LOG(INFO)<<"COV of T: "<<Cov1;
+		// LOG(INFO)<<"T transpose "<<T.transpose();
+		// LOG(INFO)<<"T "<<T;
+		// exit(0);
+		// length = T[0]*T[0] + T[1]*T[1];
+		futileb = judgeVarianceAndDistance_Small(length, Cov1);
+
 		T_inverse(0) = T(0) * mmmm(0,0) + T(1) * mmmm(1,0) + T(2) * mmmm(2,0);	
 		T_inverse(1) = T(0) * mmmm(0,1) + T(1) * mmmm(1,1) + T(2) * mmmm(2,1);
 		T_inverse(2) = T(0) * mmmm(0,2) + T(1) * mmmm(1,2) + T(2) * mmmm(2,2);
 		double transformDistance = T_inverse(0)*T(0) + T_inverse(1)*T(1) + T_inverse(2)*T(2);
+		LOG(INFO)<<"transformDistance: "<<transformDistance;
+		LOG(INFO)<<"TRANS dis with transpose :"<<T*mmmm*(T.transpose());
+
+		// loop1   =  transSequence_cluster_inter[1].first;
+		// Cov1    =  transSequence_cluster_inter[1].second;
+		// loop2   =  transSequence_cluster_inter[2].first;
+		// Cov2    =  transSequence_cluster_inter[2].second;
+		// Jacobian_4_edge_propagate(loop1, loop2, J1, J2);//generate jacobian 
+		// covariance_propagate(Cov1, Cov2, J1, J2, Cov_midd);// update covariance from two covs and two Jacobians
+		// Cov1 = Cov_midd;
+		// loop1 = loop1 * loop2;//update transform
+
+		// loop2   =  transSequence_cluster_inter[3].first;
+		// Cov2    =  transSequence_cluster_inter[3].second;
+		// Jacobian_4_edge_propagate(loop1, loop2, J1, J2);//generate jacobian 
+		// covariance_propagate(Cov1, Cov2, J1, J2, Cov_midd);// update covariance from two covs and two Jacobians
+		// Cov1 = Cov_midd;
+		// loop1 = loop1 * loop2;//update transform
+
+		// loop2   =  transSequence_cluster_inter[0].first;
+		// Cov2    =  transSequence_cluster_inter[0].second;
+		// Jacobian_4_edge_propagate(loop1, loop2, J1, J2);//generate jacobian 
+		// covariance_propagate(Cov1, Cov2, J1, J2, Cov_midd);// update covariance from two covs and two Jacobians
+		// Cov1 = Cov_midd;
+		// loop1 = loop1 * loop2;//update transform
+
+		// mmmm =  Cov1.inverse();
+		// T(0)= loop1[0];
+		// T(1) = loop1[1];
+		// T(2) = loop1[2];
+		// T_inverse(0) = T(0) * mmmm(0,0) + T(1) * mmmm(1,0) + T(2) * mmmm(2,0);	
+		// T_inverse(1) = T(0) * mmmm(0,1) + T(1) * mmmm(1,1) + T(2) * mmmm(2,1);
+		// T_inverse(2) = T(0) * mmmm(0,2) + T(1) * mmmm(1,2) + T(2) * mmmm(2,2);
+		//  transformDistance = T_inverse(0)*T(0) + T_inverse(1)*T(1) + T_inverse(2)*T(2);
+		//  LOG(INFO)<<"T "<<T;
+		// LOG(INFO)<<"transformDistance: "<<transformDistance;
+		// LOG(INFO)<<"TRANS dis with transpose :"<<T*mmmm*(T.transpose());
+
+
+		// loop1   =  transSequence_cluster_inter[2].first;
+		// Cov1    =  transSequence_cluster_inter[2].second;
+		// loop2   =  transSequence_cluster_inter[3].first;
+		// Cov2    =  transSequence_cluster_inter[3].second;
+		// Jacobian_4_edge_propagate(loop1, loop2, J1, J2);//generate jacobian 
+		// covariance_propagate(Cov1, Cov2, J1, J2, Cov_midd);// update covariance from two covs and two Jacobians
+		// Cov1 = Cov_midd;
+		// loop1 = loop1 * loop2;//update transform
+
+		// loop2   =  transSequence_cluster_inter[0].first;
+		// Cov2    =  transSequence_cluster_inter[0].second;
+		// Jacobian_4_edge_propagate(loop1, loop2, J1, J2);//generate jacobian 
+		// covariance_propagate(Cov1, Cov2, J1, J2, Cov_midd);// update covariance from two covs and two Jacobians
+		// Cov1 = Cov_midd;
+		// loop1 = loop1 * loop2;//update transform
+
+		// loop2   =  transSequence_cluster_inter[1].first;
+		// Cov2    =  transSequence_cluster_inter[1].second;
+		// Jacobian_4_edge_propagate(loop1, loop2, J1, J2);//generate jacobian 
+		// covariance_propagate(Cov1, Cov2, J1, J2, Cov_midd);// update covariance from two covs and two Jacobians
+		// Cov1 = Cov_midd;
+		// loop1 = loop1 * loop2;//update transform
+
+		// mmmm =  Cov1.inverse();
+		// T(0)= loop1[0];
+		// T(1) = loop1[1];
+		// T(2) = loop1[2];
+		// T_inverse(0) = T(0) * mmmm(0,0) + T(1) * mmmm(1,0) + T(2) * mmmm(2,0);	
+		// T_inverse(1) = T(0) * mmmm(0,1) + T(1) * mmmm(1,1) + T(2) * mmmm(2,1);
+		// T_inverse(2) = T(0) * mmmm(0,2) + T(1) * mmmm(1,2) + T(2) * mmmm(2,2);
+		//  transformDistance = T_inverse(0)*T(0) + T_inverse(1)*T(1) + T_inverse(2)*T(2);
+		//  LOG(INFO)<<"T "<<T;
+		// LOG(INFO)<<"transformDistance: "<<transformDistance;
+		// LOG(INFO)<<"TRANS dis with transpose :"<<T*mmmm*(T.transpose());
+
+
+
+		// loop1   =  transSequence_cluster_inter[3].first;
+		// Cov1    =  transSequence_cluster_inter[3].second;
+		// loop2   =  transSequence_cluster_inter[0].first;
+		// Cov2    =  transSequence_cluster_inter[0].second;
+		// Jacobian_4_edge_propagate(loop1, loop2, J1, J2);//generate jacobian 
+		// covariance_propagate(Cov1, Cov2, J1, J2, Cov_midd);// update covariance from two covs and two Jacobians
+		// Cov1 = Cov_midd;
+		// loop1 = loop1 * loop2;//update transform
+
+		// loop2   =  transSequence_cluster_inter[1].first;
+		// Cov2    =  transSequence_cluster_inter[1].second;
+		// Jacobian_4_edge_propagate(loop1, loop2, J1, J2);//generate jacobian 
+		// covariance_propagate(Cov1, Cov2, J1, J2, Cov_midd);// update covariance from two covs and two Jacobians
+		// Cov1 = Cov_midd;
+		// loop1 = loop1 * loop2;//update transform
+
+		// loop2   =  transSequence_cluster_inter[2].first;
+		// Cov2    =  transSequence_cluster_inter[2].second;
+		// Jacobian_4_edge_propagate(loop1, loop2, J1, J2);//generate jacobian 
+		// covariance_propagate(Cov1, Cov2, J1, J2, Cov_midd);// update covariance from two covs and two Jacobians
+		// Cov1 = Cov_midd;
+		// loop1 = loop1 * loop2;//update transform
+
+		// mmmm =  Cov1.inverse();
+		// T(0)= loop1[0];
+		// T(1) = loop1[1];
+		// T(2) = loop1[2];
+		// T_inverse(0) = T(0) * mmmm(0,0) + T(1) * mmmm(1,0) + T(2) * mmmm(2,0);	
+		// T_inverse(1) = T(0) * mmmm(0,1) + T(1) * mmmm(1,1) + T(2) * mmmm(2,1);
+		// T_inverse(2) = T(0) * mmmm(0,2) + T(1) * mmmm(1,2) + T(2) * mmmm(2,2);
+		// transformDistance = T_inverse(0)*T(0) + T_inverse(1)*T(1) + T_inverse(2)*T(2);
+		// LOG(INFO)<<"T "<<T;
+		// LOG(INFO)<<"transformDistance: "<<transformDistance;
+		// LOG(INFO)<<"TRANS dis with transpose :"<<T*mmmm*(T.transpose());
+
+
+		// exit(0);
 		transX_residual = T(0);
 		transY_residual = T(1);
 		transA_residual = T(2);
 		double transAngle = T_inverse(2)*T(2);
 		double transTrans = T_inverse(0)*T(0) + T_inverse(1)*T(1);
-		// cout<<"transX_residual: "<<transX_residual<<"transY_residual: "<<transY_residual<<"transA_residual: "<<transA_residual<<endl;
+		// cout<<"transX_residual: "<<T_inverse(0)*T(0)<<"transY_residual: "<<T_inverse(1)*T(1)<<"transA_residual: "<<T_inverse(2)*T(2)<<endl;
 
 		// cout<<"loop1[0]: "<<loop1[0]<<" loop1[1]:"<<loop1[1]<<" loop1[2]:"<<loop1[2]<<endl;
 		// cout<<Cov1<<endl;
@@ -5154,6 +5412,10 @@ public:
 		Jacobian_4_edge_propagate(Trans1, LP_Trans_Covar_Map[(loop_node_pair)].first, J1, J2);//generate jacobian 
 		covariance_propagate(cov1, LP_Trans_Covar_Map[(loop_node_pair)].second, J1, J2, midCov);// update covariance from two covs and two Jacobians
 
+		LOG(INFO)<<"Synthesis trans "<<Trans1[0]<<" "<<Trans1[1]<<" "<<Trans1[2];
+		LOG(INFO)<<"single loop check, loop "<<loop_node_pair.first<<" "<<loop_node_pair.second<<" is "<<LP_Trans_Covar_Map[(loop_node_pair)].first[0]<<" "<<
+			LP_Trans_Covar_Map[(loop_node_pair)].first[1]<<" "<<LP_Trans_Covar_Map[(loop_node_pair)].first[2];
+		LOG(INFO)<<"VAR MATRIX:"<<endl<<cov1;
 		loop_two_odo = Trans1 * LP_Trans_Covar_Map[(loop_node_pair)].first;//update transform
 
 		fultileBit1 = judgeVarianceAndDistance_Small(length, midCov);
@@ -5183,7 +5445,14 @@ public:
 		// cout<<"cluster num: "<<clus_num<<" group_num: "<<group_num<<endl<<" loop1: "<<loop_checked<<" loop2: "<<loop_to_check<<endl;
 		// cout<<"cov: "<<endl<<Cov_interator<<endl;
 		// cout<<"transformDistance: "<<transformDistance<<endl;
-		// cout<<"transform_interator: "<<transform_interator[0]<<" "<<transform_interator[1]<<" "<<transform_interator[2]<<endl;
+
+		// cout<<" "<<endl;
+		// cout<<"loop trans: "<<LP_Trans_Covar_Map[(loop_node_pair)].first[0]<<" "<<LP_Trans_Covar_Map[(loop_node_pair)].first[1]<<
+		// 	" "<<LP_Trans_Covar_Map[(loop_node_pair)].first[2]<<endl;
+		// cout<<"Trans1: "<<Trans1[0]<<" "<<Trans1[1]<<" "<<Trans1[2]<<endl;
+		// cout<<"Trans1.inverse: "<<Trans1.inverse()[0]<<" "<<Trans1.inverse()[1]<<" "<<Trans1.inverse()[2]<<endl;
+		// cout<<"loop transform:"<<loop_two_odo[0]<<" "<<loop_two_odo[1]<<" "<<loop_two_odo[2]<<endl;
+		// cout<<"covariance: "<<endl<<mmmm<<endl;
 		// cout<<" "<<endl;
 		returnV.second = transformDistance;
 		if (abs(transformDistance) < utils::chi2_continuous(3, belief))

@@ -122,9 +122,11 @@ public:
 		eIt = optimizer->edges().begin(),
 		eEnd = optimizer->edges().end();
 
+
 		for( ; eIt!=eEnd ; eIt++)
 		{
 			int e1 = (*eIt)->vertices()[0]->id();
+
 			int e2 = (*eIt)->vertices()[1]->id();
 			if(std::abs(e1-e2) > 1)
 			{
@@ -139,6 +141,15 @@ public:
 			}
 			else
 			{
+				cout<<"id "<<e1<<endl;
+				cout<<dynamic_cast< VertexType* >((*eIt)->vertices()[0])->b(0)<<" "<<
+					  dynamic_cast< VertexType* >((*eIt)->vertices()[0])->b(1)<<" "<<
+					  dynamic_cast< VertexType* >((*eIt)->vertices()[0])->b(2)<<" "<<endl;
+				number_t est[3];
+				auto back = dynamic_cast< EdgeType* >(*eIt)->getMeasurementData(est);
+				cout<<"1"<<endl;
+				cout<< est[0]<<" "<< est[1]<<" "<< est[2]<<" "<<endl;					
+				cout<<" "<<endl;
 				// if(e1 != odomteryEdges.size())
 					// cout<<"first step "<<e1<<" "<<e2<<" *"<<endl;
 				// else
@@ -171,6 +182,72 @@ public:
 				exit(0);
 			}
 		}
+	// bool write(const char* filename, const IntPairSet& correctLoops)
+	{
+		// restore();
+		std::ofstream out("save_to_try_vetex_info.g2o");
+		activeEdges.clear();
+		activeEdges.insert(odomteryEdges.begin(),odomteryEdges.end());
+
+		for ( IntPairToEdgePtrMap::const_iterator it = loopclosureEdges.begin(), end = loopclosureEdges.end();
+				it!=end;
+				it++)
+		{
+			activeEdges.insert(it->second);
+		}
+		optimizer->saveSubset(out,activeEdges);
+		out.close();
+		cout<<"save to show vertex info"<<endl;
+
+		return true;
+	}
+		cout<<"vertices size is "<<optimizer->vertices().size()<<endl;
+		for(int i =0; i < optimizer->vertices().size(); i++)
+		{
+			cout<<"vertex "<<i<<endl;
+			optimizer->vertices()[0];
+			number_t est[3];
+			cout<<"find dump"<<endl;
+			auto back = dynamic_cast< VertexType* >(optimizer->vertices()[i])->b();
+			cout<<"1"<<endl;
+			// dynamic_cast< VertexType* >(optimizer->vertices()[i])->getEstimateData()<<endl;
+			// cout<<"2"<<endl;
+			// dynamic_cast< VertexType* >(optimizer->vertices()[i])->getEstimateData(est);
+			// dynamic_cast< VertexType* >(optimizer->vertices()[i])->b(1);
+			cout<< back[0]<<" "<< back[1]<<" "<< back[2]<<" "<<endl;
+			cout<<" "<<endl;
+			cin.get();
+		}
+
+
+		for(int i =0; i < odomteryEdges.size(); i++)
+		{
+			cout<<"edge "<<i<<endl;
+			optimizer->vertices()[0];
+			cout<<"find dump"<<endl;
+			number_t est[3];
+			auto back = dynamic_cast< EdgeType* >(odomteryEdges[i])->getMeasurementData(est);
+			cout<<"1"<<endl;
+			// dynamic_cast< VertexType* >(optimizer->vertices()[i])->getEstimateData()<<endl;
+			// cout<<"2"<<endl;
+			// dynamic_cast< VertexType* >(optimizer->vertices()[i])->getEstimateData(est);
+			// dynamic_cast< VertexType* >(optimizer->vertices()[i])->b(1);
+			cout<< est[0]<<" "<< est[1]<<" "<< est[2]<<" "<<endl;
+			cout<<" "<<endl;
+			cin.get();
+		}
+		// for(int i=0; i<odomteryEdges.size(); i++)
+		// {
+		// 	if(odomteryEdges[i]->vertex(0)->id() != i or odomteryEdges[i]->vertex(1)->id() != (i+1))
+		// 	{
+		// 		cout<<"odo size is "<<odoSize<<endl;
+		// 		cout<<"check if it is odometry edge fail"<<endl;
+		// 		cout<<"i is "<<i<<" but first vertex id is "<< 
+		// 		 	odomteryEdges[i]->vertex(0)->id()<<" and second vertex id is "<<odomteryEdges[i]->vertex(1)->id()<<endl;
+		// 		exit(0);
+		// 	}
+		// }
+		cin.get();
 
 		return true;
 	}
@@ -448,6 +525,7 @@ public:
 		activeEdges.clear();
 		activeEdges.insert(odomteryEdges.begin(),odomteryEdges.end());
 		// activeEdges.insert(odomteryEdges.begin() + startRegion,odomteryEdges.begin() + endRegion);
+
 		for(
 			int i = 0;
 			i < newEdgeVector.size();
@@ -455,7 +533,8 @@ public:
 		{
          	// 核函数
          	// dynamic_cast< EdgeType* >(loopclosureEdges[*it])->setRobustKernel( new g2o::RobustKernelHuber() );	
-         	dynamic_cast< EdgeType* >(newEdgeVector[i])->setRobustKernel( new g2o::RobustKernelCauchy() );
+         	dynamic_cast< EdgeType* >(newEdgeVector[i])->setRobustKernel( new g2o::RobustKernelHuber() );
+         	// dynamic_cast< EdgeType* >(newEdgeVector[i])->setRobustKernel( new g2o::RobustKernelCauchy() );
 			activeEdges.insert( newEdgeVector[i]);
 		}
 		for(
@@ -481,7 +560,7 @@ public:
 		// optimizer->vertices().clear();
 
 		optimizer->initializeOptimization(activeEdges);
-
+		cout<<"optimization iteration times is "<<nIterations<<endl;
 		optimizer->optimize(nIterations,false);
 		optimizer->computeActiveErrors();
 		optimizer->findGauge()->setFixed(false);
@@ -615,6 +694,7 @@ public:
 
 		optimizer->initializeOptimization(activeEdges);
 
+		cout<<"optimization times is "<<nIterations<<endl;
 		optimizer->optimize(nIterations,false);
 		// optimizer->optimize(10,false);
 		optimizer->computeActiveErrors();
@@ -639,8 +719,8 @@ public:
 				// cauchy 
 				huber_chi2(middle_chi, rho);
 				// cauchy_chi2(middle_chi, rho);
-				// loopClosureLinkError[*it] = rho[0];
-				loopClosureLinkError[*it] = middle_chi;
+				loopClosureLinkError[*it] = rho[0];
+				// loopClosureLinkError[*it] = middle_chi;
 				sum_cauchy = sum_cauchy + rho[0];	
 
 	  			cout<<"*   cauchy    has robust error "<<rho[0]<<"  sum_cauchy:"<<sum_cauchy<<" "<<"  sum_chi:"<<sumLoopChieErr<<endl;
@@ -706,8 +786,8 @@ public:
 			it!=end;
 			it++)
 		{
-         	// dynamic_cast< EdgeType* >(loopclosureEdges[*it])->setRobustKernel( new g2o::RobustKernelHuber() );	
-         	dynamic_cast< EdgeType* >(loopclosureEdges[*it])->setRobustKernel( new g2o::RobustKernelCauchy() );
+         	dynamic_cast< EdgeType* >(loopclosureEdges[*it])->setRobustKernel( new g2o::RobustKernelHuber() );	
+         	// dynamic_cast< EdgeType* >(loopclosureEdges[*it])->setRobustKernel( new g2o::RobustKernelCauchy() );
 			activeEdges.insert( loopclosureEdges[*it]);
 		}
 		
@@ -725,7 +805,7 @@ public:
 
 		optimizer->initializeOptimization(activeEdges);
 		// nIterations = 10;
-		cout<<"nIterations: "<<10<<endl;
+		cout<<"nIterations: "<<15<<endl;
 		optimizer->optimize(15,false);
 		optimizer->computeActiveErrors();
 		optimizer->findGauge()->setFixed(false);
@@ -746,10 +826,10 @@ public:
 				cout<<"loop "<<(*it).first<<" "<<(*it).second<<"  has error "<<middle_chi<<endl;
 
 				// cauchy 
-				// huber_chi2(middle_chi, rho);
-				cauchy_chi2(middle_chi, rho);
-				// loopClosureLinkError[*it] = rho[0];
-				loopClosureLinkError[*it] = middle_chi;
+				huber_chi2(middle_chi, rho);
+				// cauchy_chi2(middle_chi, rho);
+				loopClosureLinkError[*it] = rho[0];
+				// loopClosureLinkError[*it] = middle_chi;
 				sum_cauchy = sum_cauchy + rho[0];	
 
 	  			cout<<"*   cauchy    has robust error "<<rho[0]<<"  sum_cauchy:"<<sum_cauchy<<" "<<"  sum_chi:"<<sumLoopChieErr<<endl;

@@ -30,6 +30,7 @@
 
 
 #include <iostream>
+#include <glog/logging.h>
 #include <algorithm>
 #include <numeric>
 #include <string>
@@ -85,7 +86,7 @@ public:
 	find_element find_ele;
 	BackEndInterface* gWrapper;
 	std::map<int, double> overallChi2SET4singleElementCluster;
-	int small_numIterations = 5;
+	int small_numIterations = 20;
 	int overOptimizeIteration =12;
 
 	RRR(
@@ -647,6 +648,7 @@ public:
 						std::vector< g2o::HyperGraph::Edge* > & newEdgeVector,
 						std::vector<std::pair<int,int > > & artificialLoops, int futileDis, int maxVertexID)
 	{
+		// return;
 			int start = loop_node_pair.first, end = loop_node_pair.second;
 			bool fultileBit1;
 			g2o::SE2  TransOdoSeg, TransLoop, newTrans, containerINverse;
@@ -1658,6 +1660,7 @@ public:
 		int & originalLoopNum, std::vector<std::pair<double, std::pair<int, int> > > & chiStstis4eachLoop,
 		std::vector<std::pair<int, int> > & deleted_loops)
 	{
+
 		IntPairDoubleMap chi2LinkErrors;
 		IntPairSet& currentCluster = clusterizer.getClusterByID(clusterID);
 
@@ -1725,22 +1728,32 @@ public:
 		std::pair<int, int> ele_local;
 		int serial_good;
 
+		LOG(INFO) << "divide loops into two groups, bad and good";
+		// LOG(FATAL) << "Try if fatal can terminate the program";
 		for(; eIt!=eEnd; eIt++)
 		{
+			LOG(INFO)<<"Loop "<< eIt->first.first<<" "<<eIt->first.second;
+
 			if(eIt->first.first < 0)
+			{
+				LOG(INFO)<<"MINUS, continue";
 				continue;
+			}
 			if(eIt->second > biggestErr)
 			{
 				biggestErr = eIt->second;
 				biggestErrorLoop = eIt->first;
 			}
-			if(eIt->second < utils::chi2(edgeDimension))		
+			// if(eIt->second < utils::chi2(edgeDimension))		
+			if(eIt->second < utils::chi2_continuous(edgeDimension, 0.5))		
 			{
+				LOG(INFO)<<"good  ";
 				goodLoop=goodLoop+1;
 				goodLoops.push_back(eIt->first);
 			}
 			else
 			{
+				LOG(INFO)<<"bad  ";
 				badLoops.push_back(eIt->first);
 				// cout<<"add bad loop "<<eIt->first.first<<" "<<eIt->first.second<<endl;
 			}
@@ -1814,8 +1827,10 @@ public:
 			badNum = badLoops.size() - 1;
 			deletedNum = 0;
 			int testTime;
+			cout<<"******************go into while loop, bad loop num is "<<badNum<<endl;
 			for( ; badNum>=0; badNum--)
 			{
+				cout<<"***************************go into for loop to check each potential bad loop, current bad loop is "<<badNum<<endl;
 				testTime = 9;
 				disVector.clear();
 				if(testTime > int(goodLoops.size()) -1){
@@ -2144,6 +2159,30 @@ public:
 			}			
 		}
 	}
+
+	void meanAndSigma(std::vector<double > & error2variance, double & mean, double & sigma)
+	{
+		if (error2variance.size() == 0)
+		{
+			LOG(ERROR)<<"input vector size is 0";
+		}	
+
+	    sigma=0.0;
+		mean =  std::accumulate(std::begin(error2variance), std::end(error2variance), 0.0) / error2variance.size();
+		if(error2variance.size() >= 2)
+		{
+			double accum = 0.0;
+			std::for_each (std::begin(error2variance), std::end(error2variance), [&](const double d) {
+			    accum += (d - mean) * (d - mean);
+			});
+			sigma = sqrt(accum / (error2variance.size()-1));
+		}
+		else
+		{
+			sigma = 0;
+		}
+	}
+
 	bool complementary_intra_multi(IntPairSet & currentCluster, std::vector<double> & chiStatisVector, 
 		std::vector<std::pair<int, int> > & doubtLoopNumberVector, 
 		int & originalLoopNum, std::vector<std::pair<double, std::pair<int, int> > > & chiStstis4eachLoop, 
@@ -2216,11 +2255,13 @@ public:
 		int cluster_id_;
 		cout<<" "<<endl;
 		IntPairDoubleMap::iterator eIt = chi2LinkErrors.begin(), eEnd=chi2LinkErrors.end();
+		std::vector<double> error2variance;
 		// collect each clsuter's bad loop
 		for(; eIt!=eEnd; eIt++)
 		{
 			if(eIt->first.first < 0)
 				continue;
+			error2variance.push_back(eIt->second);
 			cluster_id_ = clusterizer.getClusterID(eIt->first);
 			if(eIt->second > utils::chi2_continuous(edgeDimension, 0.95))		
 			{
@@ -2235,6 +2276,13 @@ public:
 			// cout<<"loop "<<eIt->first.first<<" "<<eIt->first.second<<" in cluster "<<clusterizer.loopToClusterIDMap[eIt->first]<<
 			// 	" has error "<< eIt->second<<endl;
 		}
+
+		// double sum = std::accumulate(std::begin(error2variance), std::end(error2variance), 0.0);
+		LOG_IF(INFO, error2variance.size() < 2) << "size is less than 2, in multi check";
+		double stdev=0.0, meanError = 0.0;
+		meanAndSigma(error2variance, meanError, stdev);
+		LOG(INFO)<<"mean + 3sigma = "<<meanError+3*stdev<<" , mean = "<<meanError<<" , stdev = "<<stdev;
+
 		// select those clusters whose bad loop propation is less than %50 as good ones
 		std::set<int>::iterator eIt_find_good_cluster = clusters_set.begin(), 
 			eEnd_find_good_cluster = clusters_set.end();
@@ -2257,7 +2305,7 @@ public:
 			{
 				// cout<<"all loop num = "<<to_find_good_clusters[cluster_id_].first<<"; bad num = "<<
 				// 	to_find_good_clusters[cluster_id_].second<<endl;
-				if(to_find_good_clusters[cluster_id_].second / to_find_good_clusters[cluster_id_].first <  0.5)
+				if(to_find_good_clusters[cluster_id_].second / to_find_good_clusters[cluster_id_].first <=  0.5)
 				{
 					// cout<<"add to good cluster set"<<endl;
 					good_clusters.insert(cluster_id_);
@@ -2280,7 +2328,7 @@ public:
 				biggestErr = eIt->second;
 				biggestErrorLoop = eIt->first;
 			}
-			if(eIt->second < utils::chi2_continuous(edgeDimension, 0.95))		
+			if((eIt->second < utils::chi2_continuous(edgeDimension, 0.95)) and (eIt->second < (meanError+3*stdev)))		
 			{
 				// good loops should come from good clusters
 				if(good_clusters.find(clusterizer.getClusterID(eIt->first)) != good_clusters.end())
@@ -2297,12 +2345,12 @@ public:
 			else
 			{
 				badLoops.push_back(eIt->first);
+				LOG(INFO)<<"put loop "<<eIt->first.first<<" "<<eIt->first.second<<" from clsuter "<<clusterizer.getClusterID(eIt->first)<<" in bad group";
 				// cout<<"add bad loop "<<eIt->first.first<<" "<<eIt->first.second<<endl;
 			}
 			// cout<<"loop "<<eIt->first.first<<" "<<eIt->first.second<<" in cluster "<<clusterizer.loopToClusterIDMap[eIt->first]<<
 			// 	" has error "<< eIt->second<<endl;
 		}
-
 
 		//handle the bad loopps, through check their transform distance to good ones	
 		std::array<std::pair<g2o::SE2, Matrix3d>, 4> FullInfo;
@@ -2320,7 +2368,7 @@ public:
 			deletedNum = 0;
 			int testTime, test_time_const;
 
-			test_time_const = int(3);
+			test_time_const = int(10);
 			if(test_time_const > int(goodLoops.size()) -1){
 				test_time_const = int(goodLoops.size()) -1;
 			}			
@@ -2614,23 +2662,36 @@ public:
 			biggestErr = 0;
 			goodLoops.clear();
 			badLoops.clear();
+			error2variance.clear();
+			for(; eIt!=eEnd; eIt++)
+			{
+				if(eIt->first.first < 0)
+					continue;				
+				error2variance.push_back(eIt->second);
+			}
+			meanAndSigma(error2variance, meanError, stdev);
+			LOG(INFO)<<"mean + 3sigma = "<<meanError+3*stdev<<" , mean = "<<meanError<<" , stdev = "<<stdev;
+			eIt = chi2LinkErrors.begin();
+			eEnd = chi2LinkErrors.end();
 			for(; eIt!=eEnd; eIt++)
 			{
 				if(eIt->first.first < 0)
 					continue;
+
 				if(eIt->second > biggestErr)
 				{
 					biggestErr = eIt->second;
 					biggestErrorLoop = eIt->first;
 				}
 
-				if(eIt->second < utils::chi2(edgeDimension))		
+				if((eIt->second < utils::chi2(edgeDimension)) and (eIt->second < meanError+3*stdev))		
 				{
 					goodLoop=goodLoop+1;
 					goodLoops.push_back(eIt->first);
 				}
 				else
 				{
+					LOG(INFO)<<"put loop "<<eIt->first.first<<" "<<eIt->first.second<<" from clsuter "<<clusterizer.getClusterID(eIt->first)<<" in bad group";
 					badLoops.push_back(eIt->first);
 				}
 				cout<<"loop "<<eIt->first.first<<" "<<eIt->first.second<<" in cluster "<<clusterizer.loopToClusterIDMap[eIt->first]<<
@@ -4414,11 +4475,13 @@ public:
 							// 	clusterizer.conflit_clsuter_pair_map_cause_loops[Pair_reverse].erase(deleted_loops[check_wrong_conflict]);
 							// }
 							// if(clusterizer.conflit_clsuter_pair_map_cause_loops[Pair].size() != 0)
+							if(potentialGoodCluster.find(Pair.second) != potentialGoodCluster.end())
 							{
 								cout<<"cluster "<<Pair.second<<
 									" is deleted as it is conflict with cluster "<<Pair.first<<endl;
 								potentialGoodCluster.erase(Pair.second);
 							}
+						
 
 						}
 					}
